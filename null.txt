@@ -1,0 +1,35 @@
+BE=https://web-production-c8591.up.railway.app
+
+# 1. ✅ Health OK (tidak crash loop)
+curl -sS "$BE/health" | jq
+
+# 2. ✅ Docs & OpenAPI MATI
+for p in /docs /redoc /openapi.json; do
+  code=$(curl -sS -o /dev/null -w '%{http_code}' "$BE$p")
+  echo "$p → $code (harus 404)"
+done
+
+# 3. ✅ /cors-check MATI
+curl -sS -o /dev/null -w '/cors-check → %{http_code}\n' "$BE/cors-check"
+
+# 4. ✅ CORS attacker origin DITOLAK (tidak ada Access-Control-Allow-Origin)
+curl -sS -D - -o /dev/null -H "Origin: https://attacker.vercel.app" "$BE/health" \
+  | grep -i access-control || echo "✅ No CORS header for attacker"
+
+# 5. ✅ CORS legit origin DITERIMA
+curl -sS -D - -o /dev/null -H "Origin: https://clouddatadprd.vercel.app" "$BE/health" \
+  | grep -i access-control
+
+# 6. ✅ Cron TANPA secret → 401 (bukan 500, bukan 200)
+curl -sS -o /dev/null -w 'cron no-secret → %{http_code}\n' \
+  -X POST "$BE/notifications/cron/monthly-report"
+
+# 7. ✅ Cron dengan secret salah → 401
+curl -sS -o /dev/null -w 'cron bad-secret → %{http_code}\n' \
+  -X POST -H "X-Cron-Secret: wrong" "$BE/notifications/cron/monthly-report"
+
+# 8. ✅ Error database TIDAK bocor
+TOKEN=... # login dulu
+curl -sS -H "Authorization: Bearer $TOKEN" "$BE/docs/00000000-0000-0000-0000-000000000000" \
+  | jq .detail
+# Harus: "Internal server error" BUKAN PGRST116/invalid input syntax
